@@ -526,6 +526,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mKeyboardViewWrapper.setOneHandedModeEnabled(enabled);
         mKeyboardViewWrapper.setOneHandedGravity(settings.getCurrent().mOneHandedModeGravity);
 
+        // oneHandeMode is always disabled for floating, and toggleSplitKeyboardMode should not mess up the setting
         if (!settings.getCurrent().mIsFloatingKeyboard)
             settings.writeOneHandedModeEnabled(enabled);
         reloadKeyboard();

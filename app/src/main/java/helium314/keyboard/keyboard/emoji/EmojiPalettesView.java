@@ -340,6 +340,7 @@ public final class EmojiPalettesView extends LinearLayout
         setupBottomRowKeyboard(editorInfo, keyboardActionListener);
         final KeyDrawParams params = new KeyDrawParams();
         params.updateParams(mEmojiLayoutParams.getBottomRowKeyboardHeight(), keyVisualAttr);
+        new EmojiLayoutParams(getResources()).setEmojiListProperties(mPager); // when floating
         setupSidePadding();
         initDictionaryFacilitator();
     }
