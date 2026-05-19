@@ -29,8 +29,6 @@ import helium314.keyboard.latin.utils.prefs
 
 // influenced by LeanType FloatingKeyboardManager, but actually quite different
 
-// todo:
-//  bad interaction with PREF_SHOW_ONLY_TOOLBAR_WITH_HARDWARE_KEYBOARD (floating toolbar might be ok, but size is wrong)
 // todo: improvements
 //  improve scale (for keys it only depends on height, so a very high keyboard will be ugly)
 //  add a frame around the keyboard
