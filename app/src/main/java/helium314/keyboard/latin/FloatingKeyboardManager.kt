@@ -91,7 +91,6 @@ class FloatingKeyboardManager {
             colors.setColor(this, ColorType.FUNCTIONAL_KEY_TEXT)
             setResizeListener(windowParams, wm)
         }
-        Log.d(TAG, "Initializing floating view done")
         return true
     }
 
@@ -99,10 +98,9 @@ class FloatingKeyboardManager {
     // this is to avoid crashing because the view can only be attached to a single parent
     // todo: on first time enabling floating keyboard this is only showing the bottom keys for a short time, should be improved
     fun updateView(viewToFloat: View) {
-        Log.d(TAG, "update $containerRoot")
         viewToFloat.doOnAttach {
-            disableFloating() // todo: this makes the keyboard flash on things that need keyboard reload, but gesture trail and popups are messed up otherwise (added in MainKeyboardView.installPreviewPlacerView)
-            Log.d(TAG, "attach $containerRoot")
+            disableFloating() // todo: this makes the keyboard flash on things that need keyboard reload
+            // container.content.removeAllViews() when doing this instead, the gesture trail and popups are messed up (added in MainKeyboardView.installPreviewPlacerView)
             (it.parent as? ViewGroup)?.removeView(it)
             enableFloating(viewToFloat)
         }
@@ -216,7 +214,6 @@ class FloatingKeyboardManager {
             context.prefs().getInt(Settings.PREF_FLOATING_POS_Y_PREFIX + width, context.resources.displayMetrics.heightPixels / 2)
     }
 
-    // will this actually be called from here?
     private fun savePosition(context: Context, x: Int, y: Int) {
         val width = context.resources.displayMetrics.widthPixels
         context.prefs().edit {

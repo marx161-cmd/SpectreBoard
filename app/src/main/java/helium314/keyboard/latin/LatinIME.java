@@ -759,7 +759,7 @@ public class LatinIME extends InputMethodService implements
         setFloatingInputView(view);
     }
 
-    // same as setInputView for internal stuff, but we don't want to set the floating view for InputMethodService
+    // same as setInputView for internal stuff, but we don't want to attach the floating view to input method content view
     public void setFloatingInputView(View view) {
         mInputView = view;
         mInsetsUpdater = ViewOutlineProviderUtilsKt.setInsetsOutlineProvider(view);
