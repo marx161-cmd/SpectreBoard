@@ -541,10 +541,14 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
 
     @Override
     public void setFloatingKeyboardEnabled(boolean enabled) {
-        if (mFloatingKeyboardManager.isFloating() == enabled) return;
         SettingsKt.setFloatingKeyboardEnabled(mThemeContext, enabled);
+        if (mFloatingKeyboardManager.isFloating() == enabled) {
+            if (enabled) mFloatingKeyboardManager.updateFloating(mCurrentInputView);
+            else mFloatingKeyboardManager.disableFloating();
+            return;
+        }
         if (enabled && mFloatingKeyboardManager.enableFloating(mCurrentInputView)) {
-            mLatinIME.setFloatingInputView(mCurrentInputView);
+            mLatinIME.setInputView(mCurrentInputView);
             reloadKeyboard();
         } else {
             SettingsKt.setFloatingKeyboardEnabled(mThemeContext, false); // in case enabling failed
@@ -770,8 +774,6 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         prefs.registerOnSharedPreferenceChangeListener(mSuggestionStripView);
         prefs.registerOnSharedPreferenceChangeListener(mClipboardHistoryView);
         PointerTracker.switchTo(mKeyboardView);
-        if (Settings.getValues().mIsFloatingKeyboard)
-            mFloatingKeyboardManager.updateView(mCurrentInputView);
         return mCurrentInputView;
     }
 

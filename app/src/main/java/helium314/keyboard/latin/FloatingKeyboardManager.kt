@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -15,7 +16,7 @@ import android.view.WindowManager
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import androidx.core.net.toUri
-import androidx.core.view.doOnAttach
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import helium314.keyboard.keyboard.KeyboardSwitcher
@@ -25,22 +26,55 @@ import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.settings.setFloatingSize
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.ToolbarMode
+import helium314.keyboard.latin.utils.dpToPx
 import helium314.keyboard.latin.utils.prefs
+import helium314.keyboard.latin.define.DebugFlags
 
 // influenced by LeanType FloatingKeyboardManager, but actually quite different
 
 // todo: improvements for later
 //  add a frame around the keyboard
-//  (dynamic) floating gesture preview is only available within the keyboard edges
+//  make views outside the keyboard (window) visible
+//   (dynamic) floating gesture preview
+//   more suggestions popup
 class FloatingKeyboardManager {
     private val TAG = this::class.java.simpleName
     val isFloating get() = floatingContainer != null
     private var floatingContainer: FloatContainerBinding? = null
     private val containerRoot get() = floatingContainer?.root
 
+    fun updateFloating(view: View) {
+        val windowParams = containerRoot?.layoutParams as? WindowManager.LayoutParams
+        if (windowParams == null) {
+            Log.e(TAG, "updateFloating, but we're not floating")
+            return
+        }
+        if (floatingContainer?.content?.children?.firstOrNull() != view) {
+            // maybe switching views would be enough, but re-enabling works just fine
+            // (but always enableFloating breaks on orientation change)
+            enableFloating(view)
+            return
+        }
+        if (DebugFlags.DEBUG_ENABLED)
+            Log.d(TAG, "updateFloating with $view")
+        val context = view.context
+        windowParams.gravity = Gravity.TOP or Gravity.START
+        val (x, y) = readPosition(context)
+        windowParams.x = x
+        windowParams.y = y
+        windowParams.width = Settings.getValues().mFloatingWidth
+        windowParams.height = Settings.getValues().mFloatingHeight + (30.dpToPx(context.resources)) + (if (Settings.getValues().mToolbarMode == ToolbarMode.HIDDEN) 0
+        else context.resources.getDimension(R.dimen.config_suggestions_strip_height).toInt())
+        try {
+            context.windowManager().updateViewLayout(containerRoot, windowParams)
+        } catch (e: Exception) {
+            Log.w(TAG, "updateViewLayout error", e)
+        }
+    }
+
     // returns whether it was successful and actually changed something
-    fun enableFloating(viewToFloat: View): Boolean {
-        val context = viewToFloat.context
+    fun enableFloating(view: View): Boolean {
+        val context = view.context
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(context)) {
             // ideally we would wait until it's set and then continue
             requestOverlayPermission(context)
@@ -59,20 +93,22 @@ class FloatingKeyboardManager {
         val (x, y) = readPosition(context)
         windowParams.x = x
         windowParams.y = y
-        Log.d(TAG, "Initializing floating view at $x, $y")
+        if (DebugFlags.DEBUG_ENABLED)
+            Log.d(TAG, "Initializing floating view at $x, $y: $view")
 
         containerRoot?.isVisible = true
+        floatingContainer?.content?.removeAllViews()
         if (!isFloating)
             floatingContainer = FloatContainerBinding.inflate(LayoutInflater.from(context))
         val wm = context.windowManager()
         try {
             if (containerRoot?.parent == null)
                 wm.addView(containerRoot, windowParams)
-            (viewToFloat.parent as? ViewGroup)?.removeView(viewToFloat)
-            floatingContainer?.content?.addView(viewToFloat, 0)
+            (view.parent as? ViewGroup)?.removeView(view)
+            floatingContainer?.content?.addView(view, 0)
         } catch (e: Exception) {
             Log.e(TAG, "Could not enable floating keyboard", e)
-            floatingContainer = null
+            disableFloating()
             return false
         }
         val colors = Settings.getValues().mColors
@@ -84,21 +120,9 @@ class FloatingKeyboardManager {
         floatingContainer?.resizeHandle?.apply {
             colors.setBackground(this, ColorType.MAIN_BACKGROUND)
             colors.setColor(this, ColorType.FUNCTIONAL_KEY_TEXT)
-            setResizeListener(windowParams, wm)
+            setResizeListener(windowParams)
         }
         return true
-    }
-
-    // newly created inputView is not yet attached, and will get attached on calling LatinIME.setInputView
-    // this is to avoid crashing because the view can only be attached to a single parent
-    // todo: on first time enabling floating keyboard this is only showing the bottom keys for a short time, should be improved
-    fun updateView(viewToFloat: View) {
-        viewToFloat.doOnAttach {
-            disableFloating() // todo: this makes the keyboard flash on things that need keyboard reload
-            // container.content.removeAllViews() when doing this instead, the gesture trail and popups are messed up (added in MainKeyboardView.installPreviewPlacerView)
-            (it.parent as? ViewGroup)?.removeView(it)
-            enableFloating(viewToFloat)
-        }
     }
 
     fun disableFloating() {
@@ -124,6 +148,7 @@ class FloatingKeyboardManager {
         var startY = 0f
         var positionX = windowParams.x.toFloat()
         var positionY = windowParams.y.toFloat()
+        val windowFrame = Rect()
         setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -135,8 +160,11 @@ class FloatingKeyboardManager {
                     val dx = event.rawX - startX
                     val dy = event.rawY - startY
                     val sv = Settings.getValues()
-                    positionX = (positionX + dx).coerceIn(0f, (resources.displayMetrics.widthPixels - sv.mFloatingWidth).toFloat())
-                    positionY = (positionY + dy).coerceIn(0f, (resources.displayMetrics.heightPixels - layoutParams.height - toolbarHeight - sv.mFloatingHeight).toFloat())
+                    getWindowVisibleDisplayFrame(windowFrame)
+                    val availableWidth = windowFrame.right - windowFrame.left
+                    val availableHeight = windowFrame.bottom - windowFrame.top
+                    positionX = (positionX + dx).coerceIn(0f, (availableWidth - sv.mFloatingWidth).toFloat())
+                    positionY = (positionY + dy).coerceIn(0f, (availableHeight - layoutParams.height - toolbarHeight - sv.mFloatingHeight).toFloat())
                     windowParams.x = positionX.toInt()
                     windowParams.y = positionY.toInt()
                     try {
@@ -158,12 +186,13 @@ class FloatingKeyboardManager {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun View.setResizeListener(windowParams: WindowManager.LayoutParams, windowManager: WindowManager) {
+    private fun View.setResizeListener(windowParams: WindowManager.LayoutParams) {
         var startX = 0f
         var startY = 0f
         val scale = 3 / context.resources.displayMetrics.density
         val toolbarHeight = if (Settings.getValues().mToolbarMode == ToolbarMode.HIDDEN) 0
             else context.resources.getDimension(R.dimen.config_suggestions_strip_height).toInt()
+        val windowFrame = Rect()
         setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -174,28 +203,21 @@ class FloatingKeyboardManager {
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - startX
                     val dy = event.rawY - startY
-                    val screenWidth = context.resources.displayMetrics.widthPixels
-                    val screenHeight = context.resources.displayMetrics.heightPixels
-                    val maxWidth = (screenWidth * 0.9f).toInt()
-                    val maxHeight = (screenHeight * 0.9f).toInt()
-                    val newWidth = (Settings.getValues().mFloatingWidth + dx / scale).toInt().coerceIn(150, maxWidth)
-                        .coerceAtMost(screenWidth - windowParams.x)
-                    val newHeight = (Settings.getValues().mFloatingHeight + dy / scale).toInt().coerceIn(100, maxHeight)
-                        // todo: status bar + nav bar height are missing, can still lead to the issue described below
-                        .coerceAtMost(screenHeight - layoutParams.height - toolbarHeight - windowParams.y)
-                    setFloatingSize(context, newWidth, newHeight)
-                    windowParams.width = newWidth
-                    // we need to set the height, because when we're resizing below the screen bottom the view shrinks to min size,
-                    // and we can only avoid this reliably with a fixed size instead of wrap content
-                    windowParams.height = (newHeight + layoutParams.height + toolbarHeight)
-                    try {
-                        windowManager.updateViewLayout(containerRoot, windowParams)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to update overlay layout", e)
-                    }
-                    KeyboardSwitcher.getInstance().reloadKeyboard()
                     startX = event.rawX
                     startY = event.rawY
+                    getWindowVisibleDisplayFrame(windowFrame)
+                    val availableWidth = windowFrame.right - windowFrame.left
+                    val availableHeight = windowFrame.bottom - windowFrame.top
+                    val maxWidth = (availableWidth * 0.9f).toInt()
+                    val maxHeight = (availableHeight * 0.9f).toInt()
+                    // avoid setting window outside windowFrame, view behaves strange otherwise
+                    val newWidth = (Settings.getValues().mFloatingWidth + dx / scale).toInt().coerceIn(150, maxWidth)
+                        .coerceAtMost(availableWidth - windowParams.x)
+                    val newHeight = (Settings.getValues().mFloatingHeight + dy / scale).toInt().coerceIn(100, maxHeight)
+                        .coerceAtMost(availableHeight - layoutParams.height - toolbarHeight - windowParams.y)
+                    setFloatingSize(context, newWidth, newHeight)
+                    KeyboardSwitcher.getInstance().reloadKeyboard()
+                    // updating window is done in updateFloating, called by reloadKeyboard
                     true
                 }
                 else -> false

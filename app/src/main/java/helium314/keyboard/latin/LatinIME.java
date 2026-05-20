@@ -750,17 +750,18 @@ public class LatinIME extends InputMethodService implements
     @Override
     public View onCreateInputView() {
         StatsUtils.onCreateInputView();
+        if (mSettings.getCurrent().mIsFloatingKeyboard) {
+            mKeyboardSwitcher.onCreateInputView(KtxKt.getDisplayContext(this), mIsHardwareAcceleratedDrawingEnabled);
+            mKeyboardSwitcher.setFloatingKeyboardEnabled(true);
+            return null;
+        }
         return mKeyboardSwitcher.onCreateInputView(KtxKt.getDisplayContext(this), mIsHardwareAcceleratedDrawingEnabled);
     }
 
     @Override
     public void setInputView(View view) {
-        super.setInputView(view);
-        setFloatingInputView(view);
-    }
-
-    // same as setInputView for internal stuff, but we don't want to attach the floating view to input method content view
-    public void setFloatingInputView(View view) {
+        if (!mSettings.getCurrent().mIsFloatingKeyboard)
+            super.setInputView(view);
         mInputView = view;
         mInsetsUpdater = ViewOutlineProviderUtilsKt.setInsetsOutlineProvider(view);
         KtxKt.updateSoftInputWindowLayoutParameters(this, mInputView);
