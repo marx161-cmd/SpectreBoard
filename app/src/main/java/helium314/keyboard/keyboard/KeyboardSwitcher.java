@@ -75,7 +75,6 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     private TextView mFakeToastView;
     private LatinIME mLatinIME;
     private RichInputMethodManager mRichImm;
-    private FloatingKeyboardManager mFloatingKeyboardManager;
     private boolean mIsHardwareAcceleratedDrawingEnabled;
 
     private KeyboardState mState;
@@ -109,7 +108,6 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mRichImm = RichInputMethodManager.getInstance();
         mState = new KeyboardState(this);
         mIsHardwareAcceleratedDrawingEnabled = mLatinIME.enableHardwareAcceleration();
-        mFloatingKeyboardManager = new FloatingKeyboardManager();
     }
 
     public void updateKeyboardTheme(@NonNull Context displayContext) {
@@ -202,15 +200,6 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         if (mKeyboardView != null) {
             mKeyboardView.onHideWindow();
         }
-        mFloatingKeyboardManager.hide();
-    }
-
-    public void onWindowShown() {
-        mFloatingKeyboardManager.showIfEnabled();
-    }
-
-    public void onDestroy() {
-        mFloatingKeyboardManager.disableFloating();
     }
 
     private void setKeyboard(final int keyboardId, @NonNull final KeyboardSwitchState toggleState) {
@@ -542,18 +531,10 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     @Override
     public void setFloatingKeyboardEnabled(boolean enabled) {
         SettingsKt.setFloatingKeyboardEnabled(mThemeContext, enabled);
-        if (mFloatingKeyboardManager.isFloating() == enabled) {
-            if (enabled) mFloatingKeyboardManager.updateFloating(mCurrentInputView);
-            else mFloatingKeyboardManager.disableFloating();
-            return;
-        }
-        if (enabled && mFloatingKeyboardManager.enableFloating(mCurrentInputView)) {
-            mLatinIME.setInputView(mCurrentInputView);
-            reloadKeyboard();
-        } else {
-            SettingsKt.setFloatingKeyboardEnabled(mThemeContext, false); // in case enabling failed
-            mFloatingKeyboardManager.disableFloating();
-            setThemeNeedsReload(); // reloadKeyboard does not do what we need, even if we transfer the view back and use setInputView
+        if (enabled) FloatingKeyboardManager.INSTANCE.setFloating(mCurrentInputView);
+        else {
+            FloatingKeyboardManager.INSTANCE.disableFloating(mCurrentInputView);
+            KtxKt.updateSoftInputWindowLayoutParameters(mLatinIME, mCurrentInputView);
         }
     }
 

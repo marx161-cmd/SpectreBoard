@@ -7,12 +7,12 @@ package helium314.keyboard.keyboard.internal
 
 import android.text.TextUtils
 import helium314.keyboard.event.Event
+import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import helium314.keyboard.latin.common.Constants
 import helium314.keyboard.latin.define.DebugFlags
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.utils.CapsModeUtils
-import helium314.keyboard.latin.utils.DebugLogUtils
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.RecapitalizeMode
 
@@ -655,7 +655,10 @@ class KeyboardState(private val switchActions: SwitchActions) {
             KeyCode.SYMBOL -> setSymbolsKeyboard()
             KeyCode.TOGGLE_ONE_HANDED_MODE -> switchActions.setOneHandedModeEnabled(!Settings.getValues().mOneHandedModeEnabled)
             KeyCode.SWITCH_ONE_HANDED_MODE -> switchActions.switchOneHandedMode()
-            KeyCode.TOGGLE_FLOATING_KEYBOARD -> switchActions.setFloatingKeyboardEnabled(!Settings.getValues().mIsFloatingKeyboard)
+            KeyCode.TOGGLE_FLOATING_KEYBOARD -> {
+                switchActions.setFloatingKeyboardEnabled(!Settings.getValues().mIsFloatingKeyboard)
+                KeyboardSwitcher.getInstance().reloadKeyboard()
+            }
         }
     }
 
