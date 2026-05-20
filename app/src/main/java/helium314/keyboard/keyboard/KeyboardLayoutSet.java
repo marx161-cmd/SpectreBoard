@@ -101,7 +101,6 @@ public final class KeyboardLayoutSet {
         boolean mIsSplitLayoutEnabled;
         InternalAction mInternalAction;
         boolean mEmojiSearchAvailable;
-        boolean mFloatingKeyboardEnabled;
     }
 
     public static void onSystemLocaleChanged() {
@@ -295,11 +294,6 @@ public final class KeyboardLayoutSet {
 
         public Builder setInternalAction(InternalAction internalAction) {
             mParams.mInternalAction = internalAction;
-            return this;
-        }
-
-        public Builder setFloatingKeyboardEnabled(boolean enabled) {
-            mParams.mFloatingKeyboardEnabled = enabled;
             return this;
         }
 
