@@ -87,10 +87,11 @@ class ClipboardHistoryManager(
         }
     }
 
-    // fallback method because in some apps we cannot commitContent, but KeyEvent.KEYCODE_PASTE works fine (if the content is the primary clip)
-    // actually we do change the primary clip, but (try to) revert immediately
+    // fallback method because in some apps there is no supported mime type and commitContend does nothing,
+    // but KeyEvent.KEYCODE_PASTE for pasting from primary clip works fine
+    // (actually we do change the primary clip, but (try to) revert immediately)
     fun pasteWithoutChangingClips(content: InputContentInfoCompat) {
-        Log.d(TAG, "Committing content did not work, trying fallback via system clipboard")
+        Log.d(TAG, "trying fallback pasting with system clipboard")
         val primaryClip = clipboardManager.primaryClip
         val tempClip = ClipData(content.description, ClipData.Item(content.contentUri))
         tempPrimaryClip = true

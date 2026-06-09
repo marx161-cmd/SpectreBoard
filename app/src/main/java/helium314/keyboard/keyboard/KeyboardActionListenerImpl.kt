@@ -6,6 +6,7 @@ import android.util.SparseArray
 import android.view.KeyEvent
 import android.view.inputmethod.InputMethodSubtype
 import androidx.core.util.forEach
+import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
 import helium314.keyboard.event.Event
 import helium314.keyboard.event.HangulEventDecoder
@@ -125,8 +126,13 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     override fun onTextInput(text: String?) = latinIME.onTextInput(text)
 
     override fun onContent(content: InputContentInfoCompat) {
-        if (connection.commitContent(content, latinIME.currentInputEditorInfo)) return
-        latinIME.clipboardHistoryManager.pasteWithoutChangingClips(content)
+        val editorInfo = latinIME.currentInputEditorInfo
+        val editorMimeTypes = EditorInfoCompat.getContentMimeTypes(editorInfo)
+        if (editorMimeTypes.any { content.description.hasMimeType(it) }) {
+            if (connection.commitContent(content, editorInfo)) return
+        } else if (editorMimeTypes.isEmpty()) {
+            latinIME.clipboardHistoryManager.pasteWithoutChangingClips(content)
+        }
     }
 
     override fun onStartBatchInput() = latinIME.onStartBatchInput()

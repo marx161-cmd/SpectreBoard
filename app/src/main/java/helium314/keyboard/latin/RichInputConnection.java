@@ -10,7 +10,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.inputmethodservice.InputMethodService;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -30,12 +29,10 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ExtractedText;
 import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
-import android.view.inputmethod.InputContentInfo;
 import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.view.inputmethod.EditorInfoCompat;
 import androidx.core.view.inputmethod.InputConnectionCompat;
 import androidx.core.view.inputmethod.InputContentInfoCompat;
 
@@ -51,7 +48,6 @@ import helium314.keyboard.latin.utils.NgramContextUtils;
 import helium314.keyboard.latin.utils.StatsUtils;
 import helium314.keyboard.latin.utils.TextRange;
 
-import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -1186,7 +1182,7 @@ public final class RichInputConnection implements PrivateCommandPerformer {
     }
 
     // doesn't work in MANY apps that support normal clipboard pasting -> fallback in KeyboardActionListenerImpl
-    public boolean commitContent(InputContentInfoCompat contentInfo, @NonNull final EditorInfo editorInfo) {
+    public boolean commitContent(InputContentInfoCompat contentInfo, @NonNull EditorInfo editorInfo) {
         mIC = mParent.getCurrentInputConnection();
         if (!isConnected()) {
             return false;
