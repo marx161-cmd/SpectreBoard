@@ -107,7 +107,7 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
             </intent-filter>
         </receiver>
 
-        <!-- for pasting file from internal clipboard -->
+        <!-- for pasting files from internal clipboard -->
         <provider android:name="helium314.keyboard.latin.database.ClipboardContentProvider"
             android:authorities="@string/clipboard_provider_authority"
             android:enabled="true"

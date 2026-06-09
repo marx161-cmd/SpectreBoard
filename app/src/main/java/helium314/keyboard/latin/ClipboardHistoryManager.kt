@@ -191,9 +191,9 @@ class ClipboardHistoryManager(
         val textView = binding.clipboardSuggestionText
         val clipIcon = latinIME.mKeyboardSwitcher.keyboard.mIconsSet.getIconDrawable(ToolbarKey.PASTE.name.lowercase())
         textView.setCompoundDrawablesRelativeWithIntrinsicBounds(clipIcon, null, null, null)
+        val inputType = editorInfo?.inputType ?: InputType.TYPE_NULL
         if (hasText) {
             if (TextUtils.isEmpty(content)) return null
-            val inputType = editorInfo?.inputType ?: InputType.TYPE_NULL
             if (InputTypeUtils.isNumberInputType(inputType) && !content.isValidNumber()) return null
             KeyboardTypeface.applyToTextView(textView)
             textView.text = (if (isClipSensitive(inputType)) "*".repeat(content.length.coerceAtMost(200)) else content)
@@ -209,13 +209,13 @@ class ClipboardHistoryManager(
         textView.setOnClickListener(onClickListener)
 
         if (hasImage) {
+            if (InputTypeUtils.isNumberInputType(inputType)) return null
             val imageView = binding.clipboardSuggestionImage
             imageView.isVisible = true
             try {
                 imageView.setImageURI(clipItem.uri)
             } catch (e: Exception) {
-                Log.w(TAG, "error setting clipboard image", e)
-                // happens with SecurityException: Permission Denial
+                Log.w(TAG, "error setting clipboard image", e) // happens with SecurityException: Permission Denial
                 return null
             }
             imageView.setOnClickListener(onClickListener)
@@ -248,13 +248,15 @@ class ClipboardHistoryManager(
 
     companion object {
         private val TAG = "ClipboardHistoryManager"
+
         // avoid showing the current suggestion because it has been dismissed or pasted
         private var dontShowCurrentSuggestion: Boolean = false
+
         const val RECENT_TIME_MILLIS = 3 * 60 * 1000L // 3 minutes (for clipboard suggestions)
 
         private fun maySaveFromUri(uri: Uri?, context: Context): Boolean {
-            val maxSize = context.prefs().getInt(Settings.PREF_CLIPBOARD_FILES_SIZE, Defaults.PREF_CLIPBOARD_FILES_SIZE)
-            val saveUriData = context.prefs().getBoolean(Settings.PREF_CLIPBOARD_FILES, Defaults.PREF_CLIPBOARD_FILES)
+            val maxSize = context.prefs().getInt(Settings.PREF_CLIPBOARD_FILES_SIZE_LIMIT, Defaults.PREF_CLIPBOARD_FILES_SIZE_LIMIT)
+            val saveUriData = context.prefs().getBoolean(Settings.PREF_CLIPBOARD_USE_FILES, Defaults.PREF_CLIPBOARD_USE_FILES)
             if (uri == null || !saveUriData) return false
             try {
                 val cursor = context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null)
@@ -262,8 +264,7 @@ class ClipboardHistoryManager(
                 val size = cursor.getLong(0)
                 return size <= maxSize * 1000000 // maxSize is megabytes
             } catch (e: Exception) {
-                Log.w(TAG, "error checking clip size", e)
-                // happens with SecurityException: Permission Denial, so returning true doesn't make sense
+                Log.w(TAG, "error checking clip size", e) // happens with SecurityException: Permission Denial
                 return false
             }
         }

@@ -33,9 +33,8 @@ class ClipboardHistoryEntry(
         return result
     }
 
-    fun getContentInfo(context: Context): InputContentInfoCompat {
-        return InputContentInfoCompat(getContentUri(context)!!, ClipDescription(text, mimeTypes?.toTypedArray()), null)
-    }
+    fun getContentInfo(context: Context): InputContentInfoCompat =
+        InputContentInfoCompat(getContentUri(context)!!, ClipDescription(text, mimeTypes?.toTypedArray()), null)
 
     fun getContentUri(context: Context) = filename?.let { FileProvider.getUriForFile(
         context,

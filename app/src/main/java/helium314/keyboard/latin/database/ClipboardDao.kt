@@ -97,7 +97,7 @@ class ClipboardDao private constructor(private val db: Database) {
 
     // keep pinned and the first non-pinned, others can be deleted
     private fun deleteIfSizeExceeded(prefs: SharedPreferences) {
-        val sizeLimit = prefs.getInt(Settings.PREF_CLIPBOARD_FILES_SIZE, Defaults.PREF_CLIPBOARD_FILES_SIZE) * 1000000
+        val sizeLimit = prefs.getInt(Settings.PREF_CLIPBOARD_FILES_SIZE_LIMIT, Defaults.PREF_CLIPBOARD_FILES_SIZE_LIMIT) * 1000000
         var size = 0L
         var keepMin = 1
         val toRemove = mutableListOf<ClipboardHistoryEntry>()
@@ -179,7 +179,7 @@ class ClipboardDao private constructor(private val db: Database) {
         delete(listOf(cache[index]))
     }
 
-    fun delete(entries: List<ClipboardHistoryEntry>) {
+    private fun delete(entries: List<ClipboardHistoryEntry>) {
         if (entries.isEmpty()) return
         cache.removeAll(entries)
         db.writableDatabase.delete(TABLE, "$COLUMN_ID IN (${entries.joinToString(",") { it.id.toString() }})", null)
@@ -220,7 +220,7 @@ class ClipboardDao private constructor(private val db: Database) {
     }
 
     fun cleanupFiles(prefs: SharedPreferences) {
-        if (!prefs.getBoolean(Settings.PREF_CLIPBOARD_FILES, Defaults.PREF_CLIPBOARD_FILES)) {
+        if (!prefs.getBoolean(Settings.PREF_CLIPBOARD_USE_FILES, Defaults.PREF_CLIPBOARD_USE_FILES)) {
             delete(cache.filter { it.filename != null && !it.isPinned })
             return
         }

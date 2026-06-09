@@ -79,9 +79,9 @@ fun PreferencesScreen(
         Settings.PREF_ENABLE_CLIPBOARD_HISTORY,
         if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME else null,
         if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_HISTORY_PINNED_FIRST else null,
-        if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_FILES else null,
-        if (clipboardHistoryEnabled && prefs.getBoolean(Settings.PREF_CLIPBOARD_FILES, Defaults.PREF_CLIPBOARD_FILES))
-            Settings.PREF_CLIPBOARD_FILES_SIZE else null,
+        if (clipboardHistoryEnabled) Settings.PREF_CLIPBOARD_USE_FILES else null,
+        if (clipboardHistoryEnabled && prefs.getBoolean(Settings.PREF_CLIPBOARD_USE_FILES, Defaults.PREF_CLIPBOARD_USE_FILES))
+            Settings.PREF_CLIPBOARD_FILES_SIZE_LIMIT else null,
     )
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -186,18 +186,18 @@ fun createPreferencesSettings(context: Context) = listOf(
     Setting(context, Settings.PREF_CLIPBOARD_HISTORY_PINNED_FIRST, R.string.clipboard_history_pinned_first) {
         SwitchPreference(it, Defaults.PREF_CLIPBOARD_HISTORY_PINNED_FIRST)
     },
-    Setting(context, Settings.PREF_CLIPBOARD_FILES, R.string.clipboard_history_files) {
+    Setting(context, Settings.PREF_CLIPBOARD_USE_FILES, R.string.clipboard_history_files) {
         val ctx = LocalContext.current
-        SwitchPreference(it, Defaults.PREF_CLIPBOARD_FILES) {
+        SwitchPreference(it, Defaults.PREF_CLIPBOARD_USE_FILES) {
             ClipboardDao.getInstance(ctx)?.cleanupFiles(ctx.prefs())
         }
     },
-    Setting(context, Settings.PREF_CLIPBOARD_FILES_SIZE, R.string.clipboard_history_max_file_size) { setting ->
+    Setting(context, Settings.PREF_CLIPBOARD_FILES_SIZE_LIMIT, R.string.clipboard_history_max_file_size) { setting ->
         val ctx = LocalContext.current
         SliderPreference(
             name = setting.title,
             key = setting.key,
-            default = Defaults.PREF_CLIPBOARD_FILES_SIZE,
+            default = Defaults.PREF_CLIPBOARD_FILES_SIZE_LIMIT,
             description = {
                 if (it > 1000) stringResource(R.string.settings_no_limit)
                 else stringResource(R.string.abbreviation_unit_mb, it.toString())
