@@ -18,6 +18,7 @@ import helium314.keyboard.latin.utils.ChecksumCalculator
 import helium314.keyboard.latin.utils.Log
 import helium314.keyboard.latin.utils.prefs
 import java.io.File
+import kotlin.collections.joinToString
 
 /** Class providing cached access to the clipboard table */
 // currently we should not need to worry about synchronizing access (though maybe we could addClip in a coroutine, then it might be relevant)
@@ -67,7 +68,7 @@ class ClipboardDao private constructor(private val db: Database) {
             updateTimestampAt(existingIndex, timestamp)
             return
         }
-        insertNewEntry(timestamp, pinned, text)
+        insertNewEntry(timestamp, pinned, text, null, null, null)
     }
 
     fun addClipUri(timestamp: Long, pinned: Boolean, uri: Uri, description: ClipDescription, context: Context) {
@@ -89,24 +90,9 @@ class ClipboardDao private constructor(private val db: Database) {
             return
         }
         tempFile.renameTo(file)
-
-        val mimeTypes = description.getMimeTypes()
-        val cv = ContentValues(4)
-        cv.put(COLUMN_TIMESTAMP, timestamp)
-        cv.put(COLUMN_PINNED, pinned)
-        cv.put(COLUMN_TEXT, description.label?.toString())
-        cv.put(COLUMN_FILE, file.name)
-        // § should be a safe separator, not allowed in mime types: https://datatracker.ietf.org/doc/html/rfc6838#section-4.2
-        cv.put(COLUMN_MIME_TYPE, mimeTypes.joinToString("$"))
-        val rowId = db.writableDatabase.insert(TABLE, null, cv)
-
-        val entry = ClipboardHistoryEntry(rowId, timestamp, pinned, description.label?.toString(), file.name, mimeTypes)
-        deleteIfSizeExceeded(context.prefs())
-        cache.add(entry)
-        cache.sort()
-        listener?.onClipInserted(cache.indexOf(entry))
         // we could try getting a thumbnail using context.contentResolver.loadThumbnail(uri, Size(a, b), null)
         // but currently we don't cache them anyway, so no use for that
+        insertNewEntry(timestamp, pinned, description.label?.toString(), file.name, description.getMimeTypes(), context)
     }
 
     // keep pinned and the first non-pinned, others can be deleted
@@ -133,14 +119,20 @@ class ClipboardDao private constructor(private val db: Database) {
         toRemove.forEach { File(clipFilesDir, it.filename!!).delete() }
     }
 
-    private fun insertNewEntry(timestamp: Long, pinned: Boolean, text: String) {
-        val cv = ContentValues(3)
+    /** only public for restoring backups */
+    fun insertNewEntry(timestamp: Long, pinned: Boolean, text: String?, filename: String?, mimeTypes: List<String>?, context: Context?) {
+        val cv = ContentValues(5)
         cv.put(COLUMN_TIMESTAMP, timestamp)
         cv.put(COLUMN_PINNED, pinned)
         cv.put(COLUMN_TEXT, text)
+        cv.put(COLUMN_FILE, filename)
+        // § should be a safe separator, not allowed in mime types: https://datatracker.ietf.org/doc/html/rfc6838#section-4.2
+        cv.put(COLUMN_MIME_TYPE, mimeTypes?.joinToString("§"))
         val rowId = db.writableDatabase.insert(TABLE, null, cv)
 
-        val entry = ClipboardHistoryEntry(rowId, timestamp, pinned, text, null, null)
+        val entry = ClipboardHistoryEntry(rowId, timestamp, pinned, text, filename, mimeTypes)
+        if (filename != null && context != null)
+            deleteIfSizeExceeded(context.prefs())
         cache.add(entry)
         cache.sort()
         listener?.onClipInserted(cache.indexOf(entry))
@@ -289,7 +281,7 @@ class ClipboardDao private constructor(private val db: Database) {
         private const val COLUMN_PINNED = "PINNED"
         private const val COLUMN_TEXT = "TEXT" // we could enforce unique text, but that's only necessary if we can drop the cache (later)
         private const val COLUMN_FILE = "FILE" // path relative to files dir
-        private const val COLUMN_MIME_TYPE = "MIME_TYPE" // for files
+        private const val COLUMN_MIME_TYPE = "MIME_TYPE" // for files, actually a list of mime types according to clipboard description
         const val CREATE_TABLE = """
             CREATE TABLE $TABLE (
                 $COLUMN_ID INTEGER PRIMARY KEY,

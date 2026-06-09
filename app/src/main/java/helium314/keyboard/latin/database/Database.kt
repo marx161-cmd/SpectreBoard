@@ -4,6 +4,7 @@ package helium314.keyboard.latin.database
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import androidx.core.database.getStringOrNull
 import androidx.core.database.sqlite.transaction
 import helium314.keyboard.latin.utils.GestureDataDao
 import helium314.keyboard.latin.utils.Log
@@ -49,11 +50,19 @@ class Database private constructor(context: Context, name: String = NAME) : SQLi
                     if (clipDao == null) {
                         Log.e(TAG, "can't transfer clipboard data because ClipboardDao is null")
                     } else {
-                        otherDb.readableDatabase.rawQuery("SELECT TIMESTAMP, PINNED, TEXT FROM CLIPBOARD", null)
+                        otherDb.readableDatabase.rawQuery("SELECT TIMESTAMP, PINNED, TEXT, FILE, MIME_TYPE FROM CLIPBOARD", null)
                             .use {
                                 clipDao.clear()
-                                while (it.moveToNext())
-                                    clipDao.addClip(it.getLong(0), it.getInt(1) != 0, it.getString(2))
+                                while (it.moveToNext()) {
+                                    clipDao.insertNewEntry(
+                                        it.getLong(0),
+                                        it.getInt(1) != 0,
+                                        it.getStringOrNull(2),
+                                        it.getStringOrNull(3),
+                                        it.getStringOrNull(4)?.split("§"),
+                                        null
+                                    )
+                                }
                             }
                     }
                     db.writableDatabase.execSQL("DELETE FROM GESTURE_DATA")

@@ -104,6 +104,7 @@ class ClipboardHistoryManager(
         // we need to wait a little before switching back to the original primary clip
         // a. it can happen that we switch back before the pasting has started, in that case we only past the primary clip
         // b. if we switch while the clip is pasted, it might crash the app (tested with joplin and logseq)
+        // todo: replacing the current primary clip is far from ideal, try finding a different way
         GlobalScope.launch {
             delay(500)
             try {
