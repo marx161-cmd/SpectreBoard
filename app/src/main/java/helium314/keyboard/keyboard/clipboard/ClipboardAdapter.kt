@@ -87,7 +87,7 @@ class ClipboardAdapter(
             }
             pinnedIconView.visibility = if (historyEntry.isPinned) View.VISIBLE else View.GONE
             contentImageView.visibility = if (historyEntry.filename != null) View.VISIBLE else View.GONE
-            contentTextView.visibility = if (contentTextView.text != null) View.VISIBLE else View.GONE
+            contentTextView.visibility = if (contentTextView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
 
         @SuppressLint("ClickableViewAccessibility")

@@ -48,8 +48,14 @@ class ClipboardHistoryEntry(
         if (mimeTypes == null || filename == null) return // should never happen
         try {
             val path = File(ClipboardDao.clipFilesDir, filename).absolutePath
-            // looks like decoded size is adjusted automatically to fit screen
-            val bitmap = BitmapFactory.decodeFile(path)
+            val opt = BitmapFactory.Options()
+            opt.inJustDecodeBounds = true
+            BitmapFactory.decodeFile(path, opt)
+            // reduce size of images larger than the screen, only needs to fit half screen width
+            val scale = opt.outWidth / (imageView.resources.displayMetrics.widthPixels * 2)
+            opt.inSampleSize = scale
+            opt.inJustDecodeBounds = false
+            val bitmap = BitmapFactory.decodeFile(path, opt)
             if (bitmap != null) {
                 imageView.setImageBitmap(bitmap)
                 textView.text = null
