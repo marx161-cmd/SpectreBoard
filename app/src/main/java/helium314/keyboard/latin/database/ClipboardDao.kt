@@ -112,11 +112,7 @@ class ClipboardDao private constructor(private val db: Database) {
                 else toRemove.add(it)
             }
         }
-        if (toRemove.isEmpty()) return
-        Log.i(TAG, "deleting ${toRemove.size} items because size limit is exceeded")
-        cache.removeAll(toRemove)
-        db.writableDatabase.delete(TABLE, "$COLUMN_ID IN (${toRemove.joinToString(",") { it.id.toString() }})", null)
-        toRemove.forEach { File(clipFilesDir, it.filename!!).delete() }
+        delete(toRemove)
     }
 
     /** only public for restoring backups */
@@ -180,10 +176,14 @@ class ClipboardDao private constructor(private val db: Database) {
 
     // RecyclerView initiates this, so we don't call listener (or we'll get an IndexOutOfRangeException from RecyclerView)
     fun deleteClipAt(index: Int) {
-        val entry = cache[index]
-        cache.remove(entry)
-        entry.filename?.let { File(clipFilesDir, it).delete() }
-        db.writableDatabase.delete(TABLE, "$COLUMN_ID = ${entry.id}", null)
+        delete(listOf(cache[index]))
+    }
+
+    fun delete(entries: List<ClipboardHistoryEntry>) {
+        if (entries.isEmpty()) return
+        cache.removeAll(entries)
+        db.writableDatabase.delete(TABLE, "$COLUMN_ID IN (${entries.joinToString(",") { it.id.toString() }})", null)
+        entries.forEach { if (it.filename != null) File(clipFilesDir, it.filename).delete() }
     }
 
     fun clearOldClips(now: Boolean = false) {
@@ -197,38 +197,19 @@ class ClipboardDao private constructor(private val db: Database) {
         if (retentionTime > 120) return
         val minTime = System.currentTimeMillis() - retentionTime * 60 * 1000L
         val toRemove = cache.filter { it.timeStamp < minTime && !it.isPinned }
-        if (toRemove.isEmpty())
-            return
-
-        toRemove.forEach {
-            cache.remove(it)
-            if (it.filename != null)
-                File(clipFilesDir, it.filename).delete()
-        }
-
-        db.writableDatabase.delete(TABLE, "$COLUMN_TIMESTAMP < $minTime AND $COLUMN_PINNED = 0", null)
+        delete(toRemove)
     }
 
     fun clearNonPinned() {
-        if (listener != null) {
-            val indicesToRemove = mutableListOf<Int>()
-            cache.forEachIndexed { idx, clip ->
-                if (!clip.isPinned)
-                    indicesToRemove.add(idx)
-            }
-            if (indicesToRemove.isEmpty())
-                return // nothing to remove
-            val toRemove = cache.filter { !it.isPinned }
-            toRemove.forEach {
-                cache.remove(it)
-                if (it.filename != null)
-                    File(clipFilesDir, it.filename).delete()
-            }
-            listener?.onClipsRemoved(indicesToRemove[0], indicesToRemove.size)
-        } else if (!cache.removeAll { !it.isPinned }) {
-            return // no listener, nothing to remove
+        val indicesToRemove = mutableListOf<Int>()
+        cache.forEachIndexed { idx, clip ->
+            if (!clip.isPinned)
+                indicesToRemove.add(idx)
         }
-        db.writableDatabase.delete(TABLE, "$COLUMN_PINNED = 0", null)
+        if (indicesToRemove.isEmpty())
+            return // nothing to remove
+        delete(cache.filter { !it.isPinned })
+        listener?.onClipsRemoved(indicesToRemove[0], indicesToRemove.size)
     }
 
     fun clear() {
@@ -240,11 +221,7 @@ class ClipboardDao private constructor(private val db: Database) {
 
     fun cleanupFiles(prefs: SharedPreferences) {
         if (!prefs.getBoolean(Settings.PREF_CLIPBOARD_FILES, Defaults.PREF_CLIPBOARD_FILES)) {
-            cache.filter { it.filename != null && !it.isPinned }.forEach {
-                cache.remove(it)
-                db.writableDatabase.delete(TABLE, "$COLUMN_ID = ${it.id}", null)
-                File(clipFilesDir, it.filename!!).delete()
-            }
+            delete(cache.filter { it.filename != null && !it.isPinned })
             return
         }
 
@@ -262,10 +239,7 @@ class ClipboardDao private constructor(private val db: Database) {
 
         Log.w(TAG, "deleting ${filesToRemove.size} files and ${entriesToRemove.size} clipboard entries")
         filesToRemove.forEach { it.delete() }
-        entriesToRemove.forEach {
-            cache.remove(it)
-            db.writableDatabase.delete(TABLE, "$COLUMN_ID = ${it.id}", null)
-        }
+        delete(entriesToRemove)
 
         deleteIfSizeExceeded(prefs)
     }

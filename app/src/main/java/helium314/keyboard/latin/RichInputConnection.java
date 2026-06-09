@@ -1181,12 +1181,10 @@ public final class RichInputConnection implements PrivateCommandPerformer {
         return mIC.requestCursorUpdates(cursorUpdateMode);
     }
 
-    // doesn't work in MANY apps that support normal clipboard pasting -> fallback in KeyboardActionListenerImpl
-    public boolean commitContent(InputContentInfoCompat contentInfo, @NonNull EditorInfo editorInfo) {
+    // doesn't work in many apps that support normal clipboard pasting, possibly just because they don't have mime types in editorInfo
+    public void commitContent(InputContentInfoCompat contentInfo, @NonNull EditorInfo editorInfo) {
         mIC = mParent.getCurrentInputConnection();
-        if (!isConnected()) {
-            return false;
-        }
-        return InputConnectionCompat.commitContent(mIC, editorInfo, contentInfo, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
+        if (isConnected())
+            InputConnectionCompat.commitContent(mIC, editorInfo, contentInfo, InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
     }
 }
