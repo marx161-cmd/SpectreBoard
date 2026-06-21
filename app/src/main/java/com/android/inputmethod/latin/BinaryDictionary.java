@@ -7,27 +7,27 @@
 package com.android.inputmethod.latin;
 
 import android.text.TextUtils;
-import helium314.keyboard.latin.utils.ChecksumCalculator;
-import helium314.keyboard.latin.utils.Log;
+import com.termux.spectreboard.latin.utils.ChecksumCalculator;
+import com.termux.spectreboard.latin.utils.Log;
 import android.util.SparseArray;
 
 import androidx.annotation.NonNull;
 
-import helium314.keyboard.latin.dictionary.Dictionary;
-import helium314.keyboard.latin.NgramContext;
-import helium314.keyboard.latin.SuggestedWords.SuggestedWordInfo;
-import helium314.keyboard.latin.common.ComposedData;
-import helium314.keyboard.latin.common.Constants;
-import helium314.keyboard.latin.common.FileUtils;
-import helium314.keyboard.latin.common.InputPointers;
-import helium314.keyboard.latin.common.StringUtils;
-import helium314.keyboard.latin.makedict.DictionaryHeader;
-import helium314.keyboard.latin.makedict.FormatSpec.DictionaryOptions;
-import helium314.keyboard.latin.makedict.UnsupportedFormatException;
-import helium314.keyboard.latin.makedict.WordProperty;
-import helium314.keyboard.latin.settings.SettingsValuesForSuggestion;
+import com.termux.spectreboard.latin.dictionary.Dictionary;
+import com.termux.spectreboard.latin.NgramContext;
+import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo;
+import com.termux.spectreboard.latin.common.ComposedData;
+import com.termux.spectreboard.latin.common.Constants;
+import com.termux.spectreboard.latin.common.FileUtils;
+import com.termux.spectreboard.latin.common.InputPointers;
+import com.termux.spectreboard.latin.common.StringUtils;
+import com.termux.spectreboard.latin.makedict.DictionaryHeader;
+import com.termux.spectreboard.latin.makedict.FormatSpec.DictionaryOptions;
+import com.termux.spectreboard.latin.makedict.UnsupportedFormatException;
+import com.termux.spectreboard.latin.makedict.WordProperty;
+import com.termux.spectreboard.latin.settings.SettingsValuesForSuggestion;
 import com.android.inputmethod.latin.utils.BinaryDictionaryUtils;
-import helium314.keyboard.latin.utils.JniUtils;
+import com.termux.spectreboard.latin.utils.JniUtils;
 import com.android.inputmethod.latin.utils.WordInputEventForPersonalization;
 
 import java.io.File;

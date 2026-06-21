@@ -7,14 +7,14 @@
 package com.android.inputmethod.keyboard;
 
 import android.graphics.Rect;
-import helium314.keyboard.latin.utils.Log;
+import com.termux.spectreboard.latin.utils.Log;
 
 import androidx.annotation.NonNull;
 
-import helium314.keyboard.keyboard.Key;
-import helium314.keyboard.keyboard.internal.TouchPositionCorrection;
-import helium314.keyboard.latin.common.Constants;
-import helium314.keyboard.latin.utils.JniUtils;
+import com.termux.spectreboard.keyboard.Key;
+import com.termux.spectreboard.keyboard.internal.TouchPositionCorrection;
+import com.termux.spectreboard.latin.common.Constants;
+import com.termux.spectreboard.latin.utils.JniUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
