@@ -7,10 +7,10 @@
 package com.android.inputmethod.latin.utils;
 
 import com.android.inputmethod.latin.BinaryDictionary;
-import helium314.keyboard.latin.common.StringUtils;
-import helium314.keyboard.latin.makedict.DictionaryHeader;
-import helium314.keyboard.latin.makedict.UnsupportedFormatException;
-import helium314.keyboard.latin.utils.JniUtils;
+import com.termux.spectreboard.latin.common.StringUtils;
+import com.termux.spectreboard.latin.makedict.DictionaryHeader;
+import com.termux.spectreboard.latin.makedict.UnsupportedFormatException;
+import com.termux.spectreboard.latin.utils.JniUtils;
 
 import java.io.File;
 import java.io.IOException;

@@ -9,10 +9,19 @@ plugins {
 }
 
 android {
+    signingConfigs {
+        create("termux") {
+            storeFile = file(project.findProperty("TERMUX_KEYSTORE") as String)
+            storePassword = project.findProperty("TERMUX_STORE_PASSWORD") as String
+            keyAlias = project.findProperty("TERMUX_KEY_ALIAS") as String
+            keyPassword = project.findProperty("TERMUX_KEY_PASSWORD") as String
+        }
+    }
+
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "helium314.keyboard"
+        applicationId = "com.termux.spectreboard"
         minSdk = 21
         targetSdk = 36
         versionCode = 4002
@@ -30,6 +39,7 @@ android {
             isShrinkResources = false
             isDebuggable = false
             isJniDebuggable = false
+            signingConfig = signingConfigs.getByName("termux")
         }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
             isMinifyEnabled = true
@@ -67,7 +77,7 @@ android {
             }
             variant.outputs.forEach { output ->
                 if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                    output.outputFileName = "HeliBoard_${defaultConfig.versionName}-${variant.buildType}.apk"
+                    output.outputFileName = "SpectreBoard_${defaultConfig.versionName}-${variant.buildType}.apk"
                 }
             }
         }
@@ -118,7 +128,7 @@ android {
         includeInBundle = false
     }
 
-    namespace = "helium314.keyboard.latin"
+    namespace = "com.termux.spectreboard.latin"
     lint {
         abortOnError = true
     }

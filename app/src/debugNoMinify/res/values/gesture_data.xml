@@ -3,5 +3,5 @@
     SPDX-License-Identifier: GPL-3.0-only
 -->
 <resources>
-    <string name="gesture_data_provider_authority" translatable="false">helium314.keyboard.debug.provider</string>
+    <string name="gesture_data_provider_authority" translatable="false">com.termux.spectreboard.debug.provider</string>
 </resources>

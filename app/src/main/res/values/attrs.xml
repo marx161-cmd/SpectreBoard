@@ -175,7 +175,7 @@
     <declare-styleable name="SuggestionStripView">
         <attr name="suggestionStripOptions" format="integer">
             <!-- This should be aligned with
-                 {@link helium314.keyboard.latin.suggestions.SuggestionStripLayoutHelper.AUTO_CORRECT_BOLD} etc. -->
+                 {@link com.termux.spectreboard.latin.suggestions.SuggestionStripLayoutHelper.AUTO_CORRECT_BOLD} etc. -->
             <flag name="autoCorrectBold" value="0x01" />
             <flag name="autoCorrectUnderline" value="0x02" />
             <flag name="validTypedWordBold" value="0x04" />
@@ -190,7 +190,7 @@
     <declare-styleable name="Keyboard">
         <attr name="themeId" format="enum">
             <!-- This should be aligned with
-                 {@link helium314.keyboard.keyboard.KeyboardTheme#THEME_ID_HOLO_BASE} etc. -->
+                 {@link com.termux.spectreboard.keyboard.KeyboardTheme#THEME_ID_HOLO_BASE} etc. -->
             <enum name="HoloBase" value="0" />
             <enum name="LXXBase" value="1" />
             <enum name="LXXBaseBorder" value="2" />
@@ -225,7 +225,7 @@
         <!-- The key action flags. -->
         <attr name="keyActionFlags" format="integer">
             <!-- This should be aligned with
-                 {@link helium314.keyboard.keyboard.Key#ACTION_FLAGS_IS_REPEATABLE} etc. -->
+                 {@link com.termux.spectreboard.keyboard.Key#ACTION_FLAGS_IS_REPEATABLE} etc. -->
             <flag name="isRepeatable" value="0x01" />
             <flag name="noKeyPreview" value="0x02" />
             <flag name="altCodeWhileTyping" value="0x04" />
@@ -240,7 +240,7 @@
         <!-- The key label flags. -->
         <attr name="keyLabelFlags" format="integer">
             <!-- This should be aligned with
-                 {@link helium314.keyboard.keyboard.Key#LABEL_FLAGS_FONT_NORMAL} etc. -->
+                 {@link com.termux.spectreboard.keyboard.Key#LABEL_FLAGS_FONT_NORMAL} etc. -->
             <flag name="alignHintLabelToBottom" value="0x02" /><!-- 2 -->
             <flag name="alignIconToBottom" value="0x04" /><!-- 4 -->
             <flag name="alignLabelOffCenter" value="0x08" /><!-- 8 -->
@@ -284,7 +284,7 @@
              If the value is fillRight, the actual key width will be determined to fill out the
              area up to the right edge of the keyboard. -->
         <!-- This should be aligned with
-             {@link helium314.keyboard.keyboard.internal.keyboard_parser.XmlKeyboardRow#KEYWIDTH_FILL_RIGHT}. -->
+             {@link com.termux.spectreboard.keyboard.internal.keyboard_parser.XmlKeyboardRow#KEYWIDTH_FILL_RIGHT}. -->
         <attr name="keyWidth" format="fraction|enum">
             <enum name="fillRight" value="-1" />
         </attr>
@@ -318,11 +318,11 @@
         <attr name="keyShiftedLetterHintRatio" format="fraction" />
         <!-- The label's horizontal offset to the center of the key. Negative is to left and
              positive is to right. The value is in proportion of the width of
-             {@link helium314.keyboard.latin.utils.TypefaceUtils#KEY_LABEL_REFERENCE_CHAR}. -->
+             {@link com.termux.spectreboard.latin.utils.TypefaceUtils#KEY_LABEL_REFERENCE_CHAR}. -->
         <attr name="keyLabelOffCenterRatio" format="fraction" />
         <!-- The hint label's horizontal offset to the center of the key. Negative is to left and
              positive is to right. The value is in proportion of the width of
-             {@link helium314.keyboard.latin.utils.TypefaceUtils#KEY_LABEL_REFERENCE_CHAR}. -->
+             {@link com.termux.spectreboard.latin.utils.TypefaceUtils#KEY_LABEL_REFERENCE_CHAR}. -->
         <attr name="keyHintLabelOffCenterRatio" format="fraction" />
         <attr name="keyTextShadowColor" format="color" />
         <!-- Color to use for the label in a key when in inactivated state. -->
@@ -343,7 +343,7 @@
     <declare-styleable name="Keyboard_Case">
         <attr name="keyboardLayoutSet" format="string" />
         <!-- This should be aligned with
-             {@link helium314.keyboard.keyboard.KeyboardId#ELEMENT_ALPHABET} etc. -->
+             {@link com.termux.spectreboard.keyboard.KeyboardId#ELEMENT_ALPHABET} etc. -->
         <attr name="keyboardLayoutSetElement" format="enum|string">
             <enum name="alphabet" value="0" />
             <enum name="alphabetManualShifted" value="1" />
@@ -375,7 +375,7 @@
             <enum name="numpad" value="28"  />
         </attr>
         <!-- This should be aligned with Keyboard.themeId and
-             {@link helium314.keyboard.keyboard.KeyboardTheme#THEME_ID_HOLO_BASE} etc. -->
+             {@link com.termux.spectreboard.keyboard.KeyboardTheme#THEME_ID_HOLO_BASE} etc. -->
         <attr name="keyboardTheme" format="enum|string">
             <enum name="HoloBase" value="0" />
             <enum name="LXXBase" value="1" />
@@ -384,7 +384,7 @@
             <enum name="RoundedBaseBorder" value="4" />
         </attr>
         <!-- This should be aligned with
-             {@link helium314.keyboard.keyboard.KeyboardId#MODE_TEXT} etc. -->
+             {@link com.termux.spectreboard.keyboard.KeyboardId#MODE_TEXT} etc. -->
         <attr name="mode" format="enum|string">
             <enum name="text" value="0" />
             <enum name="url" value="1" />
@@ -415,7 +415,7 @@
             <enum name="actionDone" value="6" />
             <enum name="actionPrevious" value="7" />
             <!-- This should be aligned with
-                 {@link helium314.keyboard.latin.utils.InputTypeUtils#IME_ACTION_CUSTOM_LABEL}. -->
+                 {@link com.termux.spectreboard.latin.utils.InputTypeUtils#IME_ACTION_CUSTOM_LABEL}. -->
             <enum name="actionCustomLabel" value="0x100" />
         </attr>
         <attr name="isIconDefined" format="string" />
