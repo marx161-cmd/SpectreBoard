@@ -14,6 +14,8 @@ import com.termux.spectreboard.event.HapticEvent
 import com.termux.spectreboard.event.HardwareEventDecoder
 import com.termux.spectreboard.event.HardwareKeyboardEventDecoder
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
+import com.termux.spectreboard.spectre.exec.ExecutionMode
+import com.termux.spectreboard.spectre.exec.SpectreBoardExecutor
 import com.termux.spectreboard.latin.AudioAndHapticFeedbackManager
 import com.termux.spectreboard.latin.EmojiAltPhysicalKeyDetector
 import com.termux.spectreboard.latin.LatinIME
@@ -127,6 +129,16 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 GestureDataGatheringSettings.tempDisableBackgroundGathering(latinIME.prefs())
                 BackgroundGatheringCache.clear()
                 latinIME.setGestureDataGatheringMode(latinIME.currentInputEditorInfo, false)
+                return
+            }
+            KeyCode.EXEC_LOCAL -> {
+                val text = latinIME.currentInputConnection?.getTextBeforeCursor(8192, 0)?.toString() ?: ""
+                SpectreBoardExecutor(latinIME).runLocal(text)
+                return
+            }
+            KeyCode.EXEC_REMOTE -> {
+                val text = latinIME.currentInputConnection?.getTextBeforeCursor(8192, 0)?.toString() ?: ""
+                SpectreBoardExecutor(latinIME).runRemote(text)
                 return
             }
         }
