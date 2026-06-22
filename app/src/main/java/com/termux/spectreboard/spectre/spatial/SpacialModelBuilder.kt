@@ -1,5 +1,6 @@
 package com.termux.spectreboard.spectre.spatial
 
+import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.ln
@@ -70,6 +71,7 @@ import kotlin.math.sqrt
  * The key's declared center is [centerX]/[centerY]; (meanX-centerX, meanY-centerY)
  * is the systematic offset (e.g. "user lands 3.1px left of P's center").
  */
+@Serializable
 data class PerKeyGaussian(
     val keyValue: String,
     val centerX: Double,
