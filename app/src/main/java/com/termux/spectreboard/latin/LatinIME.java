@@ -102,6 +102,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
+import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
+import com.termux.spectreboard.spectre.spatial.SpatialScorer;
 
 /**
  * Input method implementation for Qwerty'ish keyboard.
@@ -670,6 +672,8 @@ public class LatinIME extends InputMethodService implements
             Log.e(TAG, "Could not reset dictionary facilitator, please fix ASAP", e);
         }
         mInputLogic.mSuggest.setAutoCorrectionThreshold(settingsValues.mAutoCorrectionThreshold);
+        SpatialScorer.INSTANCE.loadFromStore(this);
+        SpatialModelWorker.INSTANCE.maybeRebuild(this);
     }
 
     /**
