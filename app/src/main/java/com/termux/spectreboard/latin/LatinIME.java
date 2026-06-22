@@ -102,6 +102,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
+import com.termux.spectreboard.spectre.KenLmScorer;
 import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
 import com.termux.spectreboard.spectre.spatial.SpatialScorer;
 
@@ -603,6 +604,7 @@ public class LatinIME extends InputMethodService implements
         mInputLogic.mSuggest.clearNextWordSuggestionsCache();
         mInputLogic.updateEmojiDictionary(locale);
         mStatsUtilsManager.onLoadSettings(this, currentSettingsValues);
+        KenLmScorer.INSTANCE.start(this);
     }
 
     private void refreshPersonalizationDictionarySession(
@@ -706,6 +708,7 @@ public class LatinIME extends InputMethodService implements
         unregisterReceiver(mDictionaryDumpBroadcastReceiver);
         unregisterReceiver(mRestartAfterDeviceUnlockReceiver);
         mStatsUtilsManager.onDestroy(this /* context */);
+        KenLmScorer.INSTANCE.stop();
         super.onDestroy();
         mHandler.removeCallbacksAndMessages(null);
         deallocateMemory();
