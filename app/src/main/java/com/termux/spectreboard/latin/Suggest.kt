@@ -25,6 +25,7 @@ import com.termux.spectreboard.latin.utils.AutoCorrectionUtils
 import com.termux.spectreboard.latin.utils.Log
 import com.termux.spectreboard.latin.utils.BackgroundGatheringCache
 import com.termux.spectreboard.latin.utils.SuggestionResults
+import com.termux.spectreboard.spectre.GruScorer
 import com.termux.spectreboard.spectre.KenLmScorer
 import com.termux.spectreboard.spectre.spatial.SpatialScorer
 import com.termux.spectreboard.latin.utils.WordData
@@ -86,6 +87,7 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         val suggestionsContainer = ArrayList(suggestionResults)
         SpatialScorer.rerank(suggestionsContainer, wordComposer.composedDataSnapshot)
         KenLmScorer.rerank(suggestionsContainer, ngramContext)
+        GruScorer.rerank(suggestionsContainer, ngramContext)
         capitalizeAndAddTrailingSingleQuotes(suggestionsContainer, capsMode, trailingSingleQuotesCount, mDictionaryFacilitator.mainLocale)
         val capitalizedTypedWord = capitalize(typedWordString, capsMode, mDictionaryFacilitator.mainLocale)
 
