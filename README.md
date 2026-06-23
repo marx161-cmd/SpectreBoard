@@ -1,10 +1,13 @@
-# HeliBoard
-HeliBoard is a privacy-conscious and customizable open-source keyboard, based on AOSP / OpenBoard.
+# SpectreBoard
+SpectreBoard is a personal fork of [HeliBoard](https://github.com/HeliBorg/HeliBoard) — a privacy-conscious, open-source keyboard based on AOSP / OpenBoard.
 Does not use internet permission, and thus is 100% offline.
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/helium314.keyboard/)
-[<img src="https://user-images.githubusercontent.com/663460/26973090-f8fdc986-4d14-11e7-995a-e7c5e79ed925.png" alt="Get APK from GitHub" height="80">](https://github.com/HeliBorg/HeliBoard/releases/latest)
-[<img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Get it on IzzyOnDroid" height="80">](https://apt.izzysoft.de/fdroid/index/apk/helium314.keyboard)
+SpectreBoard adds a three-tier autocorrect reranking pipeline on top of HeliBoard's dictionary suggestions:
+- **Tier 1 — Spatial Gaussian scorer**: proximity-weighted key-distance reranking
+- **Tier 2 — KenLM n-gram scorer**: 4-gram trie language model via native subprocess
+- **Tier 3 — GRU-CIFG language model**: CIFG-LSTM trained on personal chat corpus, running in-process via ONNX Runtime
+
+Also includes a toolbar executor (`@local`, `@comrade`, `!bg`, `!tag=`) with KDE Connect output, and background gesture data collection.
 
 ## Table of Contents
 
@@ -120,14 +123,22 @@ Since the app is based on Apache 2.0 licensed AOSP Keyboard, an [Apache 2.0](LIC
 The icon is licensed under [Creative Commons BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). A [license file](LICENSE-CC-BY-SA-4.0) is also included.
 
 # Credits
+
+## SpectreBoard additions
+- [KenLM](https://github.com/kpu/kenlm) by Kenneth Heafield — fast n-gram language model toolkit (Apache 2.0), used for the Tier-2 n-gram scorer
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime) by Microsoft — on-device inference for the Tier-3 GRU-CIFG model (MIT)
+- [PyTorch](https://github.com/pytorch/pytorch) by Meta AI — used to train the GRU-CIFG language model (BSD)
+
+## HeliBoard (upstream)
 - Icon by [Fabian OvrWrt](https://github.com/FabianOvrWrt) with contributions from [The Eclectic Dyslexic](https://github.com/the-eclectic-dyslexic)
+- [HeliBoard](https://github.com/HeliBorg/HeliBoard) by Helium314 and contributors
 - [OpenBoard](https://github.com/openboard-team/openboard)
 - [AOSP Keyboard](https://android.googlesource.com/platform/packages/inputmethods/LatinIME/)
 - [LineageOS](https://review.lineageos.org/admin/repos/LineageOS/android_packages_inputmethods_LatinIME)
 - [Simple Keyboard](https://github.com/rkkr/simple-keyboard)
 - [Indic Keyboard](https://gitlab.com/indicproject/indic-keyboard)
 - [FlorisBoard](https://github.com/florisboard/florisboard/)
-- Our [contributors](https://github.com/HeliBorg/HeliBoard/graphs/contributors)
+- HeliBoard [contributors](https://github.com/HeliBorg/HeliBoard/graphs/contributors)
 
 ## Funding
 
