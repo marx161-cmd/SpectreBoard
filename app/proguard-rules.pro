@@ -9,6 +9,9 @@
 -keep class com.termux.spectreboard.latin.NgramContext
 -keep class com.termux.spectreboard.latin.makedict.ProbabilityInfo
 
+# ONNX Runtime — native JNI looks up TensorInfo and other classes by name at runtime
+-keep class ai.onnxruntime.** { *; }
+
 # after upgrading to gradle 8, stack traces contain "unknown source"
 -keepattributes SourceFile,LineNumberTable
 -dontobfuscate
