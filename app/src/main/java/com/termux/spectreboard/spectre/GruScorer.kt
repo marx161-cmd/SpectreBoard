@@ -14,8 +14,8 @@ import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
  * Model: ONNX (opset 17), input "tokens" [1, 6] LongTensor, output "logits" [1, 30000] FloatTensor.
  * Vocab: gru_vocab.txt in assets — one word per line, line index == token ID.
  *
- * The ONNX model is loaded from filesDir (pushed separately via adb, not bundled in APK).
- * Called from the suggestion background thread — all methods are synchronized on [lock].
+ * inferLogits() runs ONNX exactly once per rerank() call regardless of candidate count.
+ * All candidates are scored by indexing into the shared logits array.
  */
 object GruScorer {
 
@@ -24,7 +24,6 @@ object GruScorer {
     private const val SEQ_LEN = 6
     private const val OOV_IDX = 1  // [UNK] token
 
-    // Rerank within this many dictionary score points — same philosophy as KenLmScorer.
     private const val SCORE_BAND = 50
     private const val MIN_SCORE_DELTA = 0.05f
 
@@ -55,27 +54,24 @@ object GruScorer {
         wordToIdx = emptyMap()
     }
 
-    private fun score(contextWords: Array<String>, candidate: String): Float? = synchronized(lock) {
+    // Run ONNX once for the current context; returns all 30k logits.
+    private fun inferLogits(contextWords: Array<String>): FloatArray? = synchronized(lock) {
         val sess = session ?: return@synchronized null
         val env = OrtEnvironment.getEnvironment()
-        val candidateIdx = wordToIdx[candidate.lowercase()] ?: OOV_IDX
-
-        // Build [1, SEQ_LEN] token array, left-padded with 0 when fewer than SEQ_LEN context words.
         val ctx = contextWords.takeLast(SEQ_LEN)
         val tokens = Array(1) { LongArray(SEQ_LEN) }
         val offset = SEQ_LEN - ctx.size
         for ((i, w) in ctx.withIndex()) {
             tokens[0][offset + i] = (wordToIdx[w.lowercase()] ?: OOV_IDX).toLong()
         }
-
         return@synchronized try {
             val inputTensor = OnnxTensor.createTensor(env, tokens)
             val output = sess.run(mapOf("tokens" to inputTensor))
             inputTensor.close()
             @Suppress("UNCHECKED_CAST")
-            val logits = (output[0].value as Array<FloatArray>)[0]
+            val logits = (output[0].value as Array<FloatArray>)[0].clone()
             output.close()
-            logits[candidateIdx]
+            logits
         } catch (_: Exception) {
             null
         }
@@ -84,20 +80,17 @@ object GruScorer {
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
         if (isEmpty()) return
         val context = ngramContext.extractPrevWordsContextArray()
-
-        val scores = HashMap<SuggestedWordInfo, Float>(suggestions.size)
-        for (s in suggestions) {
-            val sc = score(context, s.mWord.toString()) ?: continue
-            scores[s] = sc
-        }
-        if (scores.isEmpty()) return
+        val logits = inferLogits(context) ?: return
 
         suggestions.sortWith { a, b ->
             val dictDiff = b.mScore - a.mScore
             if (kotlin.math.abs(dictDiff) > SCORE_BAND) return@sortWith dictDiff
 
-            val sa = scores[a]
-            val sb = scores[b]
+            val idxA = wordToIdx[a.mWord.toString().lowercase()] ?: OOV_IDX
+            val idxB = wordToIdx[b.mWord.toString().lowercase()] ?: OOV_IDX
+            val sa = if (idxA < logits.size) logits[idxA] else null
+            val sb = if (idxB < logits.size) logits[idxB] else null
+
             when {
                 sa == null && sb == null -> dictDiff
                 sa == null -> 1
@@ -105,7 +98,7 @@ object GruScorer {
                 else -> {
                     val delta = sb - sa
                     when {
-                        delta > MIN_SCORE_DELTA -> 1
+                        delta >  MIN_SCORE_DELTA -> 1
                         delta < -MIN_SCORE_DELTA -> -1
                         else -> dictDiff
                     }
