@@ -4,10 +4,12 @@ Does not use internet permission, and thus is 100% offline.
 
 SpectreBoard adds a three-tier autocorrect reranking pipeline on top of HeliBoard's dictionary suggestions:
 - **Tier 1 — Spatial Gaussian scorer**: proximity-weighted key-distance reranking
-- **Tier 2 — KenLM n-gram scorer**: 4-gram trie language model via native subprocess
+- **Tier 2 — KenLM n-gram scorer**: 4-gram trie language model via JNI (`libspectre_score.so`), built from source in `scorer/`
 - **Tier 3 — GRU-CIFG language model**: CIFG-LSTM trained on personal chat corpus, running in-process via ONNX Runtime
 
-Also includes a toolbar executor (`@local`, `@comrade`, `!bg`, `!tag=`) with KDE Connect output, and background gesture data collection.
+**Models**: [`marx161-cmd/spectreboard-models`](https://huggingface.co/marx161-cmd/spectreboard-models) on Hugging Face — KenLM binary (`spectre.blm`, 54 MB) and GRU-CIFG ONNX (`gru_cifg.onnx`, 58 MB). Push to `/data/data/com.termux.spectreboard/files/` on device after install.
+
+Also includes a toolbar executor (`@local`, `@comrade`, `!bg`, `!tag=`) routing commands to a persistent `spectreboard` tmux session, a Direct Input Mode toolbar button for terminal apps, and background gesture data collection.
 
 ## Table of Contents
 
