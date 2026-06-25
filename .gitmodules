@@ -1,0 +1,3 @@
+[submodule "scorer/kenlm"]
+	path = scorer/kenlm
+	url = https://github.com/kpu/kenlm.git
