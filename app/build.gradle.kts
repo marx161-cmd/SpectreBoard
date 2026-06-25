@@ -188,6 +188,7 @@ tasks.register("buildKenLmJni") {
     group = "build"
     inputs.dir(scorerSrc)
     outputs.file(scorerOutput)
+    notCompatibleWithConfigurationCache("uses Project.exec and Project.copy — not config-cache serializable")
 
     doLast {
         scorerBuild.mkdirs()
