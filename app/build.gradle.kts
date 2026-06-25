@@ -168,3 +168,60 @@ dependencies {
     testImplementation("androidx.test:runner:1.7.0")
     testImplementation("androidx.test:core:1.7.0")
 }
+
+// ---------------------------------------------------------------------------
+// KenLM JNI scorer build
+//
+// Builds libspectre_score.so from scorer/cpp/ using the NDK CMake toolchain.
+// KenLM source is vendored as a git submodule at scorer/kenlm/.
+// Output is written to jniLibs/arm64-v8a/ (a pre-built copy lives there as
+// fallback; this task overwrites it when the NDK is present).
+// ---------------------------------------------------------------------------
+val ndkDir: File = android.ndkDirectory
+val scorerSrc = File(rootDir, "scorer/cpp")
+val scorerBuild = layout.buildDirectory.dir("kenlm_jni").get().asFile
+val scorerOutput = file("src/main/jniLibs/arm64-v8a/libspectre_score.so")
+val toolchainFile = "$ndkDir/build/cmake/android.toolchain.cmake"
+
+tasks.register("buildKenLmJni") {
+    description = "Build libspectre_score.so (KenLM JNI) for arm64-v8a using the NDK."
+    group = "build"
+    inputs.dir(scorerSrc)
+    outputs.file(scorerOutput)
+
+    doLast {
+        scorerBuild.mkdirs()
+        exec {
+            commandLine(
+                "cmake",
+                "-S", scorerSrc,
+                "-B", scorerBuild,
+                "-DCMAKE_TOOLCHAIN_FILE=$toolchainFile",
+                "-DANDROID_ABI=arm64-v8a",
+                "-DANDROID_PLATFORM=android-28",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DWITH_BZIP2=OFF",
+                "-DWITH_LZMA=OFF",
+            )
+        }
+        exec {
+            commandLine(
+                "cmake", "--build", scorerBuild,
+                "--target", "spectre_score",
+                "--parallel", Runtime.getRuntime().availableProcessors().toString(),
+            )
+        }
+        copy {
+            from("$scorerBuild/libspectre_score.so")
+            into(scorerOutput.parentFile)
+        }
+    }
+}
+
+// Wire into both release and debug packaging so a fresh clone always has the
+// right binary regardless of which variant is assembled.
+listOf("mergeReleaseJniLibFolders", "mergeDebugJniLibFolders").forEach { taskName ->
+    tasks.matching { it.name == taskName }.configureEach {
+        dependsOn("buildKenLmJni")
+    }
+}
