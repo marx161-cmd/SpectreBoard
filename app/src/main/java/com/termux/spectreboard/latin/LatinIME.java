@@ -553,6 +553,7 @@ public class LatinIME extends InputMethodService implements
         super.onCreate();
 
         loadSettings();
+        com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.init(this);
         mClipboardHistoryManager.onCreate();
         mHandler.onCreate();
         if (FoldableUtils.INSTANCE.isFoldable())

@@ -12,6 +12,7 @@ import androidx.core.view.forEach
 import com.termux.spectreboard.keyboard.internal.KeyboardIconsSet
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.latin.common.Constants.Separators
+import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.latin.settings.Defaults
 import com.termux.spectreboard.latin.settings.Settings
 import com.termux.spectreboard.latin.utils.ToolbarKey.*
@@ -37,6 +38,7 @@ fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: St
         && key != Settings.PREF_ALWAYS_INCOGNITO_MODE
         && key != GestureDataGatheringSettings.PREF_BACKGROUND_GATHERING_ENABLED
         && key != GestureDataGatheringSettings.PREF_BACKGROUND_DISABLED_BEFORE_TIME_MILLIS
+        && key != DirectInputMode.PREF_KEY
         && key?.startsWith(Settings.PREF_ONE_HANDED_MODE_PREFIX) == false)
         return
 
@@ -53,6 +55,7 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
         SPLIT -> Settings.getValues().mIsSplitKeyboardEnabled
         AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
         BACKGROUND_GATHERING -> useBackgroundGathering
+        DIRECT_INPUT -> DirectInputMode.enabled
         else -> true
     }
 }
@@ -92,6 +95,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING
     EXEC_LOCAL -> KeyCode.EXEC_LOCAL
     EXEC_REMOTE -> KeyCode.EXEC_REMOTE
+    DIRECT_INPUT -> KeyCode.DIRECT_INPUT
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -118,7 +122,8 @@ fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getC
 enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
-    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, EXEC_LOCAL, EXEC_REMOTE
+    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, EXEC_LOCAL, EXEC_REMOTE,
+    DIRECT_INPUT
 }
 
 enum class ToolbarMode {

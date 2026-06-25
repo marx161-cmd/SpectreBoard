@@ -941,6 +941,16 @@ public final class InputLogic {
         mSpaceState = SpaceState.NONE;
         final SettingsValues sv = inputTransaction.getSettingsValues();
 
+        // Direct input mode: commit each character immediately, no composing, no suggestions.
+        if (com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.getEnabled()) {
+            if (mWordComposer.isComposingWord()) {
+                commitTyped(sv, LastComposedWord.NOT_A_SEPARATOR);
+            }
+            mConnection.commitText(StringUtils.newSingleCodePointString(codePoint), 1);
+            inputTransaction.setDidAffectContents();
+            return;
+        }
+
         // wrap / unwrap selected text in codepoint pairs
         if (!mWordComposer.isComposingWord() && mConnection.hasSelection()) { // we should never be composing when something is selected
             final int pairedCodepoint = sv.mSpacingAndPunctuations.getSecondInSymbolPair(codePoint);
