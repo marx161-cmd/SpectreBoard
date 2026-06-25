@@ -25,6 +25,7 @@ import com.termux.spectreboard.latin.utils.AutoCorrectionUtils
 import com.termux.spectreboard.latin.utils.Log
 import com.termux.spectreboard.latin.utils.BackgroundGatheringCache
 import com.termux.spectreboard.latin.utils.SuggestionResults
+import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.GruScorer
 import com.termux.spectreboard.spectre.KenLmScorer
 import com.termux.spectreboard.spectre.spatial.SpatialScorer
@@ -62,14 +63,16 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
 
     fun getSuggestedWords(wordComposer: WordComposer, ngramContext: NgramContext, keyboard: Keyboard,
                           settingsValuesForSuggestion: SettingsValuesForSuggestion, isCorrectionEnabled: Boolean,
-                          inputStyle: Int, sequenceNumber: Int): SuggestedWords =
-        if (wordComposer.isBatchMode) {
+                          inputStyle: Int, sequenceNumber: Int): SuggestedWords {
+        if (DirectInputMode.enabled) return SuggestedWords.getEmptyInstance()
+        return if (wordComposer.isBatchMode) {
             getSuggestedWordsForBatchInput(wordComposer, ngramContext, keyboard, settingsValuesForSuggestion,
                 inputStyle, isCorrectionEnabled, sequenceNumber)
         } else {
             getSuggestedWordsForNonBatchInput(wordComposer, ngramContext, keyboard, settingsValuesForSuggestion,
                 inputStyle, isCorrectionEnabled, sequenceNumber)
         }
+    }
 
     // Retrieves suggestions for non-batch input (typing, recorrection, predictions...)
     // and calls the callback function with the suggestions.

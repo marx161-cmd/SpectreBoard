@@ -158,6 +158,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
+                    ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_holo
                 })
             }
         } }
@@ -223,6 +224,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
+                    ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_lxx
                 })
             }
         } }
@@ -288,6 +290,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
+                    ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_rounded
                 })
             }
         } }
