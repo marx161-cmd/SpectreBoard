@@ -56,6 +56,7 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
         AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
         BACKGROUND_GATHERING -> useBackgroundGathering
         DIRECT_INPUT -> DirectInputMode.enabled
+        WHISPER_MIC -> com.termux.spectreboard.spectre.WhisperRecognizer.isRecording
         else -> true
     }
 }
@@ -96,6 +97,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     EXEC_LOCAL -> KeyCode.EXEC_LOCAL
     EXEC_REMOTE -> KeyCode.EXEC_REMOTE
     DIRECT_INPUT -> KeyCode.DIRECT_INPUT
+    WHISPER_MIC -> KeyCode.WHISPER_MIC
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -123,7 +125,7 @@ enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
     PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, EXEC_LOCAL, EXEC_REMOTE,
-    DIRECT_INPUT
+    DIRECT_INPUT, WHISPER_MIC
 }
 
 enum class ToolbarMode {

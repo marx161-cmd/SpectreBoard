@@ -186,6 +186,7 @@ object KeyCode {
     const val EXEC_LOCAL =                   -10054
     const val EXEC_REMOTE =                  -10055
     const val DIRECT_INPUT =                 -10056
+    const val WHISPER_MIC =                  -10057
 
 
     // Intents
@@ -212,7 +213,7 @@ object KeyCode {
         TIMESTAMP, CTRL_LEFT, CTRL_RIGHT, ALT_LEFT, ALT_RIGHT, META_LEFT, META_RIGHT, SEND_INTENT_ONE, SEND_INTENT_TWO,
         SEND_INTENT_THREE, EMOJI_SEARCH, INLINE_EMOJI_SEARCH_DONE, META_LOCK,
         BACKGROUND_GATHERING, BACKGROUND_GATHERING_TEMP_OFF,
-        EXEC_LOCAL, EXEC_REMOTE, DIRECT_INPUT
+        EXEC_LOCAL, EXEC_REMOTE, DIRECT_INPUT, WHISPER_MIC
         -> this
 
         // conversion
