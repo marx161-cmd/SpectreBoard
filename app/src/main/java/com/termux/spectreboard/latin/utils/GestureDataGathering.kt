@@ -51,8 +51,11 @@ object BackgroundGatheringCache {
             return
         }
         if (DEBUG) Log.i(TAG, "adding ${word.topSuggestion}")
+        val wasEmpty = cachedWords.isEmpty()
         cachedWords.add(word)
-        updateIcon()
+        // Only refresh the icon when the cache transitions from empty → non-empty so we
+        // don't post a Main-thread coroutine for every batch-mode word that's added.
+        if (wasEmpty) updateIcon()
     }
 
     // used when pressing backspace or entering inline emoji search, because in this case the word is added before the internalAction is set
