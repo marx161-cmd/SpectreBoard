@@ -15,6 +15,7 @@ import com.termux.spectreboard.event.HardwareEventDecoder
 import com.termux.spectreboard.event.HardwareKeyboardEventDecoder
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.spectre.DirectInputMode
+import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.exec.ExecutionMode
 import com.termux.spectreboard.spectre.exec.SpectreBoardExecutor
 import com.termux.spectreboard.latin.AudioAndHapticFeedbackManager
@@ -144,6 +145,16 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             }
             KeyCode.DIRECT_INPUT -> {
                 DirectInputMode.toggle(latinIME)
+                return
+            }
+            KeyCode.WHISPER_MIC -> {
+                WhisperRecognizer.toggle(
+                    context = latinIME,
+                    onResult = { text ->
+                        latinIME.currentInputConnection?.commitText(text, 1)
+                    },
+                    onStateChange = {},
+                )
                 return
             }
         }

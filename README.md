@@ -9,7 +9,11 @@ SpectreBoard adds a three-tier autocorrect reranking pipeline on top of HeliBoar
 
 **Models**: [`marx161-cmd/spectreboard-models`](https://huggingface.co/marx161-cmd/spectreboard-models) on Hugging Face — KenLM binary (`spectre.blm`, 54 MB) and GRU-CIFG ONNX (`gru_cifg.onnx`, 58 MB). Push to `/data/data/com.termux.spectreboard/files/` on device after install.
 
-Also includes a toolbar executor (`@local`, `@comrade`, `!bg`, `!tag=`) routing commands to a persistent `spectreboard` tmux session, a Direct Input Mode toolbar button for terminal apps, and background gesture data collection.
+Also includes:
+- **Whisper speech-to-text** (`WHISPER_MIC` toolbar key): tap-to-toggle dictation using Whisper Tiny via ONNX Runtime + XNNPACK. Encoder and decoder ONNX files go in `/data/data/com.termux.spectreboard/files/`.
+- **Toolbar executor** (`@local`, `@comrade`, `!bg`, `!tag=`): routes commands to a persistent `spectreboard` tmux session, results via Android notifications.
+- **Direct Input Mode** (padlock toolbar button): bypasses composing/autocorrect, commits each character immediately — useful in terminal apps.
+- Background gesture data collection for future spatial model training.
 
 ## Table of Contents
 

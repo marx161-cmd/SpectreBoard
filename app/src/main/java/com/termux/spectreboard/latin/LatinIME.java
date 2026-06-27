@@ -104,6 +104,7 @@ import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 import com.termux.spectreboard.spectre.GruScorer;
 import com.termux.spectreboard.spectre.KenLmScorer;
+import com.termux.spectreboard.spectre.WhisperRecognizer;
 import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
 import com.termux.spectreboard.spectre.spatial.SpatialScorer;
 
@@ -608,6 +609,7 @@ public class LatinIME extends InputMethodService implements
         mStatsUtilsManager.onLoadSettings(this, currentSettingsValues);
         KenLmScorer.INSTANCE.start(this);
         GruScorer.INSTANCE.start(this);
+        WhisperRecognizer.INSTANCE.init(this);
     }
 
     private void refreshPersonalizationDictionarySession(
@@ -713,6 +715,7 @@ public class LatinIME extends InputMethodService implements
         mStatsUtilsManager.onDestroy(this /* context */);
         KenLmScorer.INSTANCE.stop();
         GruScorer.INSTANCE.stop();
+        WhisperRecognizer.INSTANCE.stop();
         super.onDestroy();
         mHandler.removeCallbacksAndMessages(null);
         deallocateMemory();
