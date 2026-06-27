@@ -131,9 +131,12 @@ The icon is licensed under [Creative Commons BY-SA 4.0](https://creativecommons.
 # Credits
 
 ## SpectreBoard additions
-- [KenLM](https://github.com/kpu/kenlm) by Kenneth Heafield — fast n-gram language model toolkit (Apache 2.0), used for the Tier-2 n-gram scorer
-- [ONNX Runtime](https://github.com/microsoft/onnxruntime) by Microsoft — on-device inference for the Tier-3 GRU-CIFG model (MIT)
-- [PyTorch](https://github.com/pytorch/pytorch) by Meta AI — used to train the GRU-CIFG language model (BSD)
+- [OpenAI Whisper](https://github.com/openai/whisper) (`whisper-tiny`) by OpenAI — speech recognition model used for the tap-to-dictate toolbar key (MIT). Loaded via Hugging Face Transformers, exported to ONNX with PyTorch, quantized with ONNX Runtime quantization tools.
+- [KenLM](https://github.com/kpu/kenlm) by Kenneth Heafield — fast n-gram language model toolkit, used for the Tier-2 n-gram scorer (Apache 2.0)
+- [ONNX Runtime](https://github.com/microsoft/onnxruntime) by Microsoft — on-device inference for the Whisper encoder/decoder and GRU-CIFG scorer; XNNPACK execution provider used for ARM NEON acceleration (MIT)
+- [PyTorch](https://github.com/pytorch/pytorch) by Meta AI — GRU-CIFG model training and Whisper ONNX export (BSD)
+- [Hugging Face Transformers](https://github.com/huggingface/transformers) by Hugging Face — used to load and export the Whisper model (Apache 2.0)
+- [LiteRT](https://ai.google.dev/edge/litert) by Google — explored for Tensor G5 NPU acceleration; `LiteRtEncoder.kt` is included in the source but not active (Apache 2.0)
 
 ## HeliBoard (upstream)
 - Icon by [Fabian OvrWrt](https://github.com/FabianOvrWrt) with contributions from [The Eclectic Dyslexic](https://github.com/the-eclectic-dyslexic)
