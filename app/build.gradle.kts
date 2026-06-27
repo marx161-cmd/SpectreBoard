@@ -157,7 +157,7 @@ dependencies {
     implementation("sh.calvin.reorderable:reorderable:3.1.0") // for easier re-ordering
     implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors
 
-    // ONNX Runtime for GRU-CIFG scorer
+    // ONNX Runtime for GRU-CIFG scorer and Whisper decoder
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
     // test
@@ -201,6 +201,12 @@ tasks.register("buildKenLmJni") {
                 "-DANDROID_ABI=arm64-v8a",
                 "-DANDROID_PLATFORM=android-28",
                 "-DCMAKE_BUILD_TYPE=Release",
+                // Override CMake's default -O2 release flags with -O3 + thin LTO.
+                // Thin LTO lets clang inline across the kenlm/kenlm_util boundary at link time.
+                // No -ffast-math: KenLM log-prob comparisons are sensitive to float reordering.
+                "-DCMAKE_CXX_FLAGS_RELEASE=-O3 -DNDEBUG",
+                "-DCMAKE_C_FLAGS_RELEASE=-O3 -DNDEBUG",
+                "-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON",
                 "-DWITH_BZIP2=OFF",
                 "-DWITH_LZMA=OFF",
             )
