@@ -97,3 +97,14 @@ The in-process LiteRT JNI G5 path was blocked by Android app sandbox dispatch st
 The older 16MB int8-compiled G5 whisper-tiny encoder produced NaN output on real floor-heavy Whisper mel tensors. Recompiling from raw FP32 TFLite with the current GoogleBeta AOT compile path produced working models for both whisper-tiny (22MB, 384-dim) and whisper-base (47MB, 512-dim). All 343/343 ops offloaded to G5 NPU.
 
 Skipping int8 quantization for the decoder as well — the int8 lowering layer on Tensor G5 is prone to catastrophic underflows. The FP32 decoder (300MB) runs on CPU via ONNX Runtime + XNNPACK.
+
+## Perf fix (2026-06-28): unnecessary layout pass on background gathering icon
+
+`KeyboardSwitcher.java:632` was calling `setLayoutParams(getLayoutParams())` on every
+`setBackgroundGatheringIndicatorPosition()` call, which triggered a full `requestLayout()` →
+`performMeasure()` pass even when `topMargin` hadn't changed. This caused the main thread to
+recompute suggestion-strip text layout (`StaticLayout.generate` → `LineBreaker.computeLineBreaks`
+in native minikin) on every background gathering icon refresh.
+
+**Fix:** guard `setLayoutParams()` behind a `topMargin` equality check so layout is only
+invalidated when the position actually changes.
