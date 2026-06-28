@@ -13,6 +13,7 @@ object SpatialScorer {
     // Candidates outside the band keep their dictionary ordering unchanged.
     // Tune up to let spatial have more influence, down to make it more conservative.
     private const val SCORE_BAND = 20
+    private const val LENGTH_MISMATCH_PENALTY = 2.0
 
     /** Load persisted model from SharedPreferences into memory. Call once at IME startup. */
     fun loadFromStore(context: Context) {
@@ -37,10 +38,11 @@ object SpatialScorer {
      * [composedData] carries the tap trajectory for the current word.
      */
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, composedData: ComposedData) {
+        if (suggestions.size < 2) return
         if (model.isEmpty()) return
         val pointers = composedData.mInputPointers
         val tapCount = pointers.pointerSize
-        if (tapCount == 0) return
+        if (tapCount < 2) return
 
         val xs = pointers.xCoordinates
         val ys = pointers.yCoordinates
@@ -81,6 +83,6 @@ object SpatialScorer {
             val gaussian = model[key] ?: continue
             score += gaussian.logDensity(xs[i].toDouble(), ys[i].toDouble())
         }
-        return score
+        return score - kotlin.math.abs(word.length - tapCount) * LENGTH_MISMATCH_PENALTY
     }
 }

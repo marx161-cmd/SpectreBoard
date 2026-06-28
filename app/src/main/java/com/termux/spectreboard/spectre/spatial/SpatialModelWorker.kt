@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 object SpatialModelWorker {
     // Rebuild only when at least this many new rows have been collected since the last build.
@@ -14,6 +15,7 @@ object SpatialModelWorker {
     private const val MIN_NEW_ROWS = 50
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val rebuildInProgress = AtomicBoolean(false)
 
     /**
      * Trigger an async model rebuild if enough new tap rows have accumulated.
@@ -25,20 +27,22 @@ object SpatialModelWorker {
         val currentRowCount = dao.count()
         val lastBuilt = SpatialModelStore.lastBuiltRowCount(context)
         if (currentRowCount - lastBuilt < MIN_NEW_ROWS) return
+        if (!rebuildInProgress.compareAndSet(false, true)) return
 
+        val appContext = context.applicationContext
         scope.launch {
-            val builder = SpatialModelBuilder()
-            var ingested = 0
-            // Pass sourceIsTap=true for all rows. Swipe records are filtered out
-            // automatically inside SpatialModelBuilder.alignTapsToChars() because
-            // their trajectory point count >> targetWord character count.
-            for (json in dao.getAllJsonData(context)) {
-                ingested += builder.ingestRow(json, sourceIsTap = true)
+            try {
+                val builder = SpatialModelBuilder()
+                for (json in dao.getAllJsonData(appContext)) {
+                    builder.ingestRow(json, sourceIsTap = true)
+                }
+                val model = builder.build()
+                if (model.isEmpty()) return@launch
+                SpatialModelStore.save(appContext, model, currentRowCount)
+                SpatialScorer.updateModel(model)
+            } finally {
+                rebuildInProgress.set(false)
             }
-            val model = builder.build()
-            if (model.isEmpty()) return@launch
-            SpatialModelStore.save(context, model, currentRowCount)
-            SpatialScorer.updateModel(model)
         }
     }
 }

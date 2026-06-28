@@ -1,8 +1,8 @@
 # SpectreBoard — Build Status
 
-**Built:** 2026-06-27  
-**APK:** `app/build/outputs/apk/release/SpectreBoard_4.0-alpha2-release.apk` (~24MB)  
-**Installed on:** Pixel 10 Pro (`blazer`)  
+**Built:** 2026-06-28
+**APK:** `app/build/outputs/apk/release/SpectreBoard_4.0-alpha2-release.apk` (~52MB)
+**Installed on:** Pixel 10 Pro (`blazer`)
 **Signed with:** Termux suite key (`com.termux.*` ecosystem)
 
 ## What's done
@@ -31,12 +31,15 @@
   - Model: `gru_cifg.onnx` (58 MB) — push to `/data/data/com.termux.spectreboard/files/`
   - Logits cache: skips ONNX inference when composing context is unchanged between keystrokes
 
-### Whisper speech-to-text IME (complete — 2026-06-27)
+### Whisper speech-to-text IME (complete — 2026-06-28)
 - **`WhisperRecognizer.kt`** (`spectre/WhisperRecognizer.kt`): tap-to-toggle speech input
+- **`WhisperG5WorkerClient.kt`** (`spectre/WhisperG5WorkerClient.kt`): strict native G5 worker encoder client
 - Toolbar key `WHISPER_MIC` (KeyCode `-10057`) — add via SpectreBoard Settings → Toolbar Keys
-- Encoder: `whisper_tiny_encoder_int8.onnx` (32MB) via ONNX Runtime + XNNPACK
+- Encoder: `whisper_tiny_encoder_fp32_recompiled_g5.tflite` (22MB) via packaged `libwhisper_g5_worker.so` + `libLiteRtDispatch_GoogleTensor.so`
 - Decoder: `whisper_tiny_decoder_int8.onnx` (47MB) via ONNX Runtime + XNNPACK
-- Push both to `/data/data/com.termux.spectreboard/files/` alongside vocab files
+- Push the decoder and vocab files to `/data/data/com.termux.spectreboard/files/`
+- Push the G5 encoder model to `/data/local/tmp/whisper_tiny_encoder_fp32_recompiled_g5.tflite`
+- No ORT encoder fallback: G5 worker failures are logged, surfaced, and saved as `ERROR: ...` in the `.hyp.txt`
 - Mel spectrogram: pure Kotlin Cooley-Tukey FFT (512-pt), 80-band mel filterbank with Slaney area normalization and correct Whisper log10 normalization
 - Greedy decode: `[SOT=50258, EN=50259, TRANSCRIBE=50359, NOTIMESTAMPS=50363]`, max 224 tokens
 - Haptics: `EFFECT_CLICK` on start, `EFFECT_DOUBLE_CLICK` on done (API 29+)
@@ -66,10 +69,15 @@ Push these to `/data/data/com.termux.spectreboard/files/` after install:
 |---|---|---|
 | `spectre.blm` | 54 MB | [HF: spectreboard-models](https://huggingface.co/marx161-cmd/spectreboard-models) |
 | `gru_cifg.onnx` | 58 MB | [HF: spectreboard-models](https://huggingface.co/marx161-cmd/spectreboard-models) |
-| `whisper_tiny_encoder_int8.onnx` | 32 MB | `~/homelab/iree-stack/whisper-tflite/out/` |
 | `whisper_tiny_decoder_int8.onnx` | 47 MB | `~/homelab/iree-stack/whisper-tflite/out/` |
 | `whisper_tiny_vocab.txt` | ~300 KB | `~/homelab/iree-stack/whisper-tflite/out/` |
 | `whisper_tiny_special_tokens.json` | ~2 KB | `~/homelab/iree-stack/whisper-tflite/out/` |
+
+Also push this encoder model to `/data/local/tmp/`:
+
+| File | Size | Source |
+|---|---|---|
+| `whisper_tiny_encoder_fp32_recompiled_g5.tflite` | 22 MB | `~/homelab/iree-stack/GoogleBeta/sd-pixel/model-garden/g5_experiments/` |
 
 ## Key paths
 
@@ -81,6 +89,8 @@ Push these to `/data/data/com.termux.spectreboard/files/` after install:
 | Theme | `app/src/main/assets/themes/pixelteal.json` |
 | Overview doc | `SpectreBoard-Overview.md` |
 
-## G5 NPU note (2026-06-27)
+## G5 NPU note (2026-06-28)
 
-LiteRT CompiledModel G5 NPU path (`LiteRtEncoder.kt` — not wired in) is blocked for untrusted Android apps. The SouthBound firmware dispatch init calls `LITERT_FATAL` → `abort()` (non-recoverable) for any process running in the Android app sandbox. Requires system-app privileges or IPC to a privileged native process to resolve. ORT+XNNPACK is the active encoder path.
+The in-process LiteRT JNI G5 path was blocked by Android app sandbox dispatch startup failures, so SpectreBoard now launches a packaged native worker process instead. The worker runs under the app UID, loads the packaged Tensor dispatch library from `jniLibs`, and uses `/data/local/tmp/whisper_tiny_encoder_fp32_recompiled_g5.tflite`.
+
+The older 16MB G5-compiled encoder produced NaN output on real floor-heavy Whisper mel tensors. Recompiling from the raw FP32 TFLite with the current GoogleBeta AOT compile path produced a 22MB model that passes the failed real-mel repro and deterministic synthetic input. The app intentionally has no ORT encoder fallback so failures are visible.

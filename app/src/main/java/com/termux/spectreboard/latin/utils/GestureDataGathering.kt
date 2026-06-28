@@ -267,7 +267,8 @@ class WordData(
             pointerData,
             keyboardInfo,
             activeMode,
-            null
+            null,
+            inputStyle
         )
         scope.launch { dao.add(data, topWord, timestamp) }
         if (!activeMode)
@@ -374,7 +375,8 @@ data class GestureData(
     val gesture: List<PointerData>,
     val keyboardInfo: KeyboardInfo,
     val activeMode: Boolean,
-    val uuid: String?
+    val uuid: String?,
+    val inputStyle: Int = SuggestedWords.INPUT_STYLE_NONE
 ) {
     companion object {
         fun GestureData.toJsonWithChecksum(): String {
