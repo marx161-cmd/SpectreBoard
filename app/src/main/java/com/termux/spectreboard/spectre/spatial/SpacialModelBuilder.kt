@@ -1,5 +1,6 @@
 package com.termux.spectreboard.spectre.spatial
 
+import com.termux.spectreboard.latin.SuggestedWords
 import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
@@ -195,6 +196,9 @@ class SpatialModelBuilder(
 
         val targetWord = root.optString("targetWord", "")
         if (targetWord.isEmpty()) return 0
+        if (root.has("inputStyle") && root.optInt("inputStyle") != SuggestedWords.INPUT_STYLE_TYPING) {
+            return 0
+        }
 
         val keyGeom = parseKeyboardInfo(root) ?: return 0
         val taps = parseTaps(root) ?: return 0

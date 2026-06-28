@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
+import android.widget.Toast
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -41,8 +42,8 @@ object WhisperRecognizer {
     private var NO_TIMESTAMPS = 50363
 
     private val ortEnv by lazy { OrtEnvironment.getEnvironment() }
-    private var encSess: OrtSession? = null
     private var decSess: OrtSession? = null
+    private var g5Encoder: WhisperG5WorkerClient? = null
     private var vocab: Array<String> = emptyArray()
 
     private val lock = Any()
@@ -56,7 +57,7 @@ object WhisperRecognizer {
 
     // called once from LatinIME (loadSettings); safe to call repeatedly — re-entrant guard at top
     fun init(context: Context): Unit = synchronized(lock) {
-        if (decSess != null) return   // already initialised
+        if (decSess != null && g5Encoder?.isReady == true) return   // already initialised
         // ApplicationInfo.dataDir is always CE (/data/data/...) regardless of context protection mode
         val dir = File(context.applicationInfo.dataDir, "files")
         val decFile   = File(dir, "whisper_tiny_decoder_int8.onnx")
@@ -67,19 +68,14 @@ object WhisperRecognizer {
             return
         }
 
-        // --- Encoder: ORT float32 + XNNPACK ---
-        val encFile = File(dir, "whisper_tiny_encoder_int8.onnx")
-        if (encFile.exists()) {
-            try {
-                encSess = ortEnv.createSession(encFile.absolutePath,
-                    OrtSession.SessionOptions().apply { addXnnpack(mapOf()) })
-                Log.i(TAG, "encoder: ORT float32+XNNPACK (${encFile.length()/1024}KB)")
-            } catch (e: Exception) {
-                Log.e(TAG, "ORT encoder failed", e)
-            }
-        }
-        if (encSess == null) {
-            Log.w(TAG, "init: no encoder available"); return
+        // --- Encoder: strict Tensor G5 worker ---
+        try {
+            g5Encoder = WhisperG5WorkerClient(context.applicationContext).also { it.start() }
+            Log.i(TAG, "encoder: Tensor G5 worker")
+        } catch (e: Exception) {
+            Log.e(TAG, "G5 encoder worker failed", e)
+            g5Encoder = null
+            return
         }
 
         // --- Decoder: ORT int8 always ---
@@ -95,15 +91,16 @@ object WhisperRecognizer {
                 TRANSCRIBE    = parseJsonInt(json, "transcribe")   ?: TRANSCRIBE
                 NO_TIMESTAMPS = parseJsonInt(json, "notimestamps") ?: NO_TIMESTAMPS
             }
-            Log.i(TAG, "init OK encoder=ORT/XNNPACK vocab=${vocab.size}")
+            Log.i(TAG, "init OK encoder=G5 worker vocab=${vocab.size}")
         } catch (e: Exception) {
             Log.e(TAG, "ORT decoder failed", e)
             decSess = null
-            encSess = null
+            g5Encoder?.stop()
+            g5Encoder = null
         }
     }
 
-    fun isAvailable() = synchronized(lock) { encSess != null && decSess != null }
+    fun isAvailable() = synchronized(lock) { g5Encoder?.isReady == true && decSess != null }
 
     /** Toggle: first call starts recording, second call stops and transcribes. */
     fun toggle(context: Context, onResult: (String) -> Unit, onStateChange: () -> Unit) {
@@ -149,7 +146,17 @@ object WhisperRecognizer {
 
             if (read > 0) {
                 val samples = buf.copyOf(read)
-                val text = transcribe(samples)
+                val text = try {
+                    transcribe(samples)
+                } catch (e: Exception) {
+                    val msg = "Whisper G5 failed: ${e.message ?: e.javaClass.simpleName}"
+                    Log.e(TAG, msg, e)
+                    saveSnippet(samples, "ERROR: $msg")
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
                 saveSnippet(samples, text)
                 withContext(Dispatchers.Main) {
                     vibrate(context, VibrationEffect.EFFECT_DOUBLE_CLICK)
@@ -185,29 +192,12 @@ object WhisperRecognizer {
     private fun transcribe(samples: FloatArray): String {
         val dec = decSess ?: return ""
         val mel = computeMelSpectrogram(samples)                   // [1, 80, 3000]
-        val encOut = runEncoder(mel) ?: return ""                  // flat [1500 * 384]
+        val encOut = runEncoder(mel)                               // flat [1500 * 384]
         return greedyDecode(dec, encOut)
     }
 
-    private fun runEncoder(mel: FloatBuffer): FloatArray? =
-        runOrtEncoder(encSess ?: return null, mel)
-
-    private fun runOrtEncoder(sess: OrtSession, mel: FloatBuffer): FloatArray? {
-        val shape = longArrayOf(1, N_MELS.toLong(), N_FRAMES.toLong())
-        val tensor = OnnxTensor.createTensor(ortEnv, mel, shape)
-        return try {
-            val out = sess.run(mapOf("input_features" to tensor))
-            val arr = out[0].value as Array<*>  // [1][1500][384]
-            val flat = FloatArray(1500 * 384)
-            val row0 = arr[0] as Array<*>
-            var i = 0
-            for (row in row0) { for (v in row as FloatArray) flat[i++] = v }
-            flat
-        } catch (e: Exception) {
-            Log.e(TAG, "ORT encoder run failed", e)
-            null
-        } finally { tensor.close() }
-    }
+    private fun runEncoder(mel: FloatBuffer): FloatArray =
+        (g5Encoder ?: error("G5 encoder worker is not initialized")).run(mel)
 
     private fun greedyDecode(sess: OrtSession, encoderOut: FloatArray): String {
         val encShape  = longArrayOf(1, 1500, 384)
@@ -408,7 +398,7 @@ object WhisperRecognizer {
     }
 
     fun stop() = synchronized(lock) {
-        encSess?.close(); encSess = null
+        g5Encoder?.stop(); g5Encoder = null
         decSess?.close(); decSess = null
     }
 }

@@ -47,6 +47,7 @@ object KenLmScorer {
     }
 
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
+        if (suggestions.size < 2) return
         if (isEmpty()) return
 
         val contextWords = ngramContext.extractPrevWordsContextArray()
