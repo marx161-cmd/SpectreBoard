@@ -34,18 +34,19 @@
 ### Whisper speech-to-text IME (complete — 2026-06-28)
 - **`WhisperRecognizer.kt`** (`spectre/WhisperRecognizer.kt`): tap-to-toggle speech input
 - **`WhisperG5WorkerClient.kt`** (`spectre/WhisperG5WorkerClient.kt`): strict native G5 worker encoder client
-- Toolbar key `WHISPER_MIC` (KeyCode `-10057`) — add via SpectreBoard Settings → Toolbar Keys
-- Encoder: `whisper_tiny_encoder_fp32_recompiled_g5.tflite` (22MB) via packaged `libwhisper_g5_worker.so` + `libLiteRtDispatch_GoogleTensor.so`
-- Decoder: `whisper_tiny_decoder_int8.onnx` (47MB) via ONNX Runtime + XNNPACK
+- Toolbar key `WHISPER_MIC` (KeyCode `-10057`) — add via SpectreBoard Settings -> Toolbar Keys
+- Encoder: `whisper_base_encoder_fp32_g5.tflite` (47MB) via packaged `libwhisper_g5_worker.so` + `libLiteRtDispatch_GoogleTensor.so`
+- Decoder: `whisper_base_decoder.onnx` (300MB FP32) via ONNX Runtime + XNNPACK
 - Push the decoder and vocab files to `/data/data/com.termux.spectreboard/files/`
-- Push the G5 encoder model to `/data/local/tmp/whisper_tiny_encoder_fp32_recompiled_g5.tflite`
+- Push the G5 encoder model to `/data/local/tmp/whisper_base_encoder_fp32_g5.tflite`
 - No ORT encoder fallback: G5 worker failures are logged, surfaced, and saved as `ERROR: ...` in the `.hyp.txt`
 - Mel spectrogram: pure Kotlin Cooley-Tukey FFT (512-pt), 80-band mel filterbank with Slaney area normalization and correct Whisper log10 normalization
 - Greedy decode: `[SOT=50258, EN=50259, TRANSCRIBE=50359, NOTIMESTAMPS=50363]`, max 224 tokens
 - Haptics: `EFFECT_CLICK` on start, `EFFECT_DOUBLE_CLICK` on done (API 29+)
 - WAV + `.hyp.txt` saved to `externalFiles/whisper-samples/session_DATE/snippet_NNN.*`
 - RECORD_AUDIO permission in manifest
-- Models: `~/homelab/iree-stack/whisper-tflite/out/` (source on comrade)
+- Models: `~/homelab/iree-stack/whisper-tflite/out_base/` (whisper-base, source on comrade)
+- Encoder dimension: 512-dim hidden (1500 frames * 512 = 768,000 output floats, 343/343 ops offloaded to G5 NPU)
 
 ### Toolbar executor (complete)
 - `SpectreBoardExecutor.kt`: `@local`, `@comrade` SSH, `!bg`, `!nonotify`, `!tag=` prefixes
@@ -69,15 +70,15 @@ Push these to `/data/data/com.termux.spectreboard/files/` after install:
 |---|---|---|
 | `spectre.blm` | 54 MB | [HF: spectreboard-models](https://huggingface.co/marx161-cmd/spectreboard-models) |
 | `gru_cifg.onnx` | 58 MB | [HF: spectreboard-models](https://huggingface.co/marx161-cmd/spectreboard-models) |
-| `whisper_tiny_decoder_int8.onnx` | 47 MB | `~/homelab/iree-stack/whisper-tflite/out/` |
-| `whisper_tiny_vocab.txt` | ~300 KB | `~/homelab/iree-stack/whisper-tflite/out/` |
-| `whisper_tiny_special_tokens.json` | ~2 KB | `~/homelab/iree-stack/whisper-tflite/out/` |
+| `whisper_base_decoder.onnx` | 300 MB | `~/homelab/iree-stack/whisper-tflite/out_base/` |
+| `whisper_base_vocab.txt` | ~450 KB | `~/homelab/iree-stack/whisper-tflite/out_base/` |
+| `whisper_base_special_tokens.json` | ~97 B | `~/homelab/iree-stack/whisper-tflite/out_base/` |
 
 Also push this encoder model to `/data/local/tmp/`:
 
 | File | Size | Source |
 |---|---|---|
-| `whisper_tiny_encoder_fp32_recompiled_g5.tflite` | 22 MB | `~/homelab/iree-stack/GoogleBeta/sd-pixel/model-garden/g5_experiments/` |
+| `whisper_base_encoder_fp32_g5.tflite` | 47 MB | `~/homelab/iree-stack/whisper-tflite/out_base/` |
 
 ## Key paths
 
@@ -91,6 +92,8 @@ Also push this encoder model to `/data/local/tmp/`:
 
 ## G5 NPU note (2026-06-28)
 
-The in-process LiteRT JNI G5 path was blocked by Android app sandbox dispatch startup failures, so SpectreBoard now launches a packaged native worker process instead. The worker runs under the app UID, loads the packaged Tensor dispatch library from `jniLibs`, and uses `/data/local/tmp/whisper_tiny_encoder_fp32_recompiled_g5.tflite`.
+The in-process LiteRT JNI G5 path was blocked by Android app sandbox dispatch startup failures, so SpectreBoard now launches a packaged native worker process instead. The worker runs under the app UID, loads the packaged Tensor dispatch library from `jniLibs`, and uses `/data/local/tmp/whisper_base_encoder_fp32_g5.tflite`.
 
-The older 16MB G5-compiled encoder produced NaN output on real floor-heavy Whisper mel tensors. Recompiling from the raw FP32 TFLite with the current GoogleBeta AOT compile path produced a 22MB model that passes the failed real-mel repro and deterministic synthetic input. The app intentionally has no ORT encoder fallback so failures are visible.
+The older 16MB int8-compiled G5 whisper-tiny encoder produced NaN output on real floor-heavy Whisper mel tensors. Recompiling from raw FP32 TFLite with the current GoogleBeta AOT compile path produced working models for both whisper-tiny (22MB, 384-dim) and whisper-base (47MB, 512-dim). All 343/343 ops offloaded to G5 NPU.
+
+Skipping int8 quantization for the decoder as well — the int8 lowering layer on Tensor G5 is prone to catastrophic underflows. The FP32 decoder (300MB) runs on CPU via ONNX Runtime + XNNPACK.

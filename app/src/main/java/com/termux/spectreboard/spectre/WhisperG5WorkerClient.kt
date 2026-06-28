@@ -172,9 +172,9 @@ class WhisperG5WorkerClient(private val context: Context) {
     companion object {
         private const val TAG = "WhisperG5Worker"
         private const val TAG_ERR = "WhisperG5Worker-err"
-        private const val MODEL_PATH = "/data/local/tmp/whisper_tiny_encoder_fp32_recompiled_g5.tflite"
+        private const val MODEL_PATH = "/data/local/tmp/whisper_base_encoder_fp32_g5.tflite"
         private const val INPUT_FLOATS = 80 * 3000
-        private const val OUTPUT_FLOATS = 1500 * 384
+        private const val OUTPUT_FLOATS = 1500 * 512
         private const val START_TIMEOUT_MS = 15_000L
         private const val RUN_TIMEOUT_MS = 15_000L
     }

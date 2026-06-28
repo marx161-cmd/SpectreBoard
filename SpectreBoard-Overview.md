@@ -231,7 +231,7 @@ The keyboard *could* keep improving from real usage. Different tiers, different 
 |---|---|---|
 | Haptics (`VibrationEffect.EFFECT_CLICK`/`EFFECT_TICK`) | None | Standard public API, just implementation |
 | ASK layout converter | None | Mechanical XML transform, can run in parallel with any phase |
-| Whisper integration | Done | on-device strict G5 encoder worker + ORT decoder |
+| Whisper integration | Done | on-device strict G5 encoder worker (whisper-base, 512-dim) + ORT FP32 decoder |
 | Adaptive learning | Post-Phase 3 | LoRA/QLoRA for LSTM, corpus rebuild for KenLM, online Gaussian update for spatial |
 
 ### Open Decisions / TODO
@@ -243,7 +243,7 @@ The keyboard *could* keep improving from real usage. Different tiers, different 
 - [ ] Build Gaussian consumer + wire into `TouchPositionCorrection` path — **Phase 2.**
 - [ ] GRU-CIFG-LM → TFLite, KenLM → arm64, wire into suggest pipeline — **Phase 3.**
 - [ ] Confirm crDroid + APatch can run a self-signed keyboard cleanly (no conflict w/ existing IME slots).
-- [x] ~~Whisper integration: on-device (whisper.cpp / LiteRT) vs endpoint.~~ → Done with strict G5 encoder worker, FP32 recompiled LiteRT model, and ORT decoder.
+- [x] ~~Whisper integration: on-device (whisper.cpp / LiteRT) vs endpoint.~~ → Done with strict G5 encoder worker, FP32 whisper-base (512-dim, 47MB G5 encoder, 300MB FP32 decoder via optimum/ONNX Runtime).
 - [ ] Decide adaptive-learning scope & local text retention policy.
 - [ ] Build ASK layout XML → HeliBoard layout format converter.
 - [ ] Wire in Gboard-style haptics (`VibrationEffect.EFFECT_CLICK`/`EFFECT_TICK` fired at `ACTION_DOWN`).

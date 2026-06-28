@@ -60,9 +60,9 @@ object WhisperRecognizer {
         if (decSess != null && g5Encoder?.isReady == true) return   // already initialised
         // ApplicationInfo.dataDir is always CE (/data/data/...) regardless of context protection mode
         val dir = File(context.applicationInfo.dataDir, "files")
-        val decFile   = File(dir, "whisper_tiny_decoder_int8.onnx")
-        val vocabFile = File(dir, "whisper_tiny_vocab.txt")
-        val tokFile   = File(dir, "whisper_tiny_special_tokens.json")
+        val decFile   = File(dir, "whisper_base_decoder.onnx")
+        val vocabFile = File(dir, "whisper_base_vocab.txt")
+        val tokFile   = File(dir, "whisper_base_special_tokens.json")
         if (!decFile.exists() || !vocabFile.exists()) {
             Log.w(TAG, "init: missing decoder or vocab at $dir")
             return
@@ -200,7 +200,7 @@ object WhisperRecognizer {
         (g5Encoder ?: error("G5 encoder worker is not initialized")).run(mel)
 
     private fun greedyDecode(sess: OrtSession, encoderOut: FloatArray): String {
-        val encShape  = longArrayOf(1, 1500, 384)
+        val encShape  = longArrayOf(1, 1500, 512)
         val encBuf    = FloatBuffer.wrap(encoderOut)
         val encTensor = OnnxTensor.createTensor(ortEnv, encBuf, encShape)
 
