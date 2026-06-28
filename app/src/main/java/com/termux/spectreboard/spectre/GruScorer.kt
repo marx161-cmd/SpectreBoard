@@ -30,7 +30,7 @@ object GruScorer {
 
     private val lock = Any()
     private var session: OrtSession? = null
-    private var wordToIdx: Map<String, Int> = emptyMap()
+    @Volatile private var wordToIdx: Map<String, Int> = emptyMap()
 
     // One-entry logits cache — ngramContext doesn't change between keystrokes within the same
     // composing word, so skip inference when the context key is unchanged.
@@ -83,7 +83,7 @@ object GruScorer {
             val output = sess.run(mapOf("tokens" to inputTensor))
             inputTensor.close()
             @Suppress("UNCHECKED_CAST")
-            val logits = (output[0].value as Array<FloatArray>)[0].clone()
+            val logits = (output[0].value as Array<FloatArray>)[0]
             output.close()
             cachedContextKey = key
             cachedLogits = logits
@@ -95,24 +95,21 @@ object GruScorer {
 
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
         if (suggestions.size < 2) return
-        val vocab = synchronized(lock) {
-            if (session == null) return
-            wordToIdx
-        }
+        val vocab = wordToIdx
+        if (vocab.isEmpty()) return
         val context = ngramContext.extractPrevWordsContextArray()
         val logits = inferLogits(context) ?: return
 
-        suggestions.sortWith { a, b ->
+        val scored = suggestions.mapIndexed { idx, s ->
+            val tokenId = vocab[s.mWord.toString().lowercase()] ?: OOV_IDX
+            Triple(idx, logits.getOrNull(tokenId), s)
+        }
+
+        val ordered = scored.sortedWith { (_, sa, a), (_, sb, b) ->
             val dictDiff = b.mScore - a.mScore
-            if (kotlin.math.abs(dictDiff) > SCORE_BAND) return@sortWith dictDiff
-
-            val idxA = vocab[a.mWord.toString().lowercase()] ?: OOV_IDX
-            val idxB = vocab[b.mWord.toString().lowercase()] ?: OOV_IDX
-            val sa = if (idxA < logits.size) logits[idxA] else null
-            val sb = if (idxB < logits.size) logits[idxB] else null
-
+            if (kotlin.math.abs(dictDiff) > SCORE_BAND) return@sortedWith dictDiff
             when {
-                sa == null && sb == null -> dictDiff
+                sa == null && sb == null -> 0
                 sa == null -> 1
                 sb == null -> -1
                 else -> {
@@ -125,5 +122,8 @@ object GruScorer {
                 }
             }
         }
+
+        suggestions.clear()
+        suggestions.addAll(ordered.map { (_, _, s) -> s })
     }
 }

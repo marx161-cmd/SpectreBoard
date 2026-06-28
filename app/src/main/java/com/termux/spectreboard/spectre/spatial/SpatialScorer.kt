@@ -78,9 +78,9 @@ object SpatialScorer {
     private fun scoreTaps(word: String, xs: IntArray, ys: IntArray, tapCount: Int): Double {
         var score = 0.0
         val n = minOf(word.length, tapCount)
+        val lc = word.lowercase()
         for (i in 0 until n) {
-            val key = word[i].lowercaseChar().toString()
-            val gaussian = model[key] ?: continue
+            val gaussian = model[lc[i].toString()] ?: continue
             score += gaussian.logDensity(xs[i].toDouble(), ys[i].toDouble())
         }
         return score - kotlin.math.abs(word.length - tapCount) * LENGTH_MISMATCH_PENALTY
