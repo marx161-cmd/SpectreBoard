@@ -4,6 +4,7 @@ import com.termux.spectreboard.latin.R
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -11,6 +12,7 @@ import androidx.core.content.edit
 import androidx.core.view.forEach
 import com.termux.spectreboard.keyboard.internal.KeyboardIconsSet
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
+import com.termux.spectreboard.latin.common.ColorType
 import com.termux.spectreboard.latin.common.Constants.Separators
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.latin.settings.Defaults
@@ -30,6 +32,21 @@ fun createToolbarKey(context: Context, key: ToolbarKey): ImageButton {
     setToolbarButtonActivatedState(button)
     button.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(key.name, context))
     return button
+}
+
+fun refreshToolbarButtonActivatedStates(buttonsGroup: ViewGroup) {
+    val colors = Settings.getValues().mColors
+    buttonsGroup.forEach { view ->
+        if (view is ImageButton) {
+            setToolbarButtonActivatedState(view)
+            if (view.tag == WHISPER_MIC) {
+                view.imageTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_activated), intArrayOf(-android.R.attr.state_activated)),
+                    intArrayOf(colors.get(ColorType.ACTION_KEY_BACKGROUND), colors.get(ColorType.TOOL_BAR_KEY))
+                )
+            }
+        }
+    }
 }
 
 fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: String?) {

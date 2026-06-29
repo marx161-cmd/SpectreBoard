@@ -58,6 +58,7 @@ import com.termux.spectreboard.latin.utils.getPinnedToolbarKeys
 import com.termux.spectreboard.latin.utils.prefs
 import com.termux.spectreboard.latin.utils.removeFirst
 import com.termux.spectreboard.latin.utils.removePinnedKey
+import com.termux.spectreboard.latin.utils.refreshToolbarButtonActivatedStates
 import com.termux.spectreboard.latin.utils.setToolbarButtonsActivatedStateOnPrefChange
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
@@ -287,6 +288,11 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     // overrides: necessarily public, but not used from outside
+
+    fun refreshToolbarButtonActivatedStates() {
+        refreshToolbarButtonActivatedStates(toolbar)
+        refreshToolbarButtonActivatedStates(pinnedKeys)
+    }
 
     override fun onSharedPreferenceChanged(prefs: SharedPreferences, key: String?) {
         setToolbarButtonsActivatedStateOnPrefChange(pinnedKeys, key)

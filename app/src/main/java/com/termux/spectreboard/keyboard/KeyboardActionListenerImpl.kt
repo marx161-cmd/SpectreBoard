@@ -153,7 +153,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                     onResult = { text ->
                         latinIME.currentInputConnection?.commitText(text, 1)
                     },
-                    onStateChange = {},
+                    onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
                 )
                 return
             }
