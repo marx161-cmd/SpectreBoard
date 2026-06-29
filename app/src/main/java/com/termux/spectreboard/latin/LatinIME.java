@@ -778,6 +778,10 @@ public class LatinIME extends InputMethodService implements
         updateSuggestionStripView(view);
     }
 
+    public void refreshToolbarButtonActivatedStates() {
+        if (hasSuggestionStripView()) mSuggestionStripView.refreshToolbarButtonActivatedStates();
+    }
+
     public void updateSuggestionStripView(View view) {
         mSuggestionStripView = mSettings.getCurrent().mToolbarMode == ToolbarMode.HIDDEN || isEmojiSearch()?
                         null : view.findViewById(R.id.suggestion_strip_view);
