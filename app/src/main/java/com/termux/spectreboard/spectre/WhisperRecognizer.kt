@@ -47,6 +47,7 @@ object WhisperRecognizer {
     private var vocab: Array<String> = emptyArray()
 
     private val lock = Any()
+    @Volatile private var initPending = false
     private var audioRecord: AudioRecord? = null
     private var job: Job? = null
     private var sessionDir: File? = null
@@ -55,9 +56,20 @@ object WhisperRecognizer {
     var isRecording = false
         private set
 
-    // called once from LatinIME (loadSettings); safe to call repeatedly — re-entrant guard at top
-    fun init(context: Context): Unit = synchronized(lock) {
-        if (decSess != null && g5Encoder?.isReady == true) return   // already initialised
+    // called from LatinIME.loadSettings() on main thread; dispatches blocking work to IO thread
+    fun init(context: Context) {
+        synchronized(lock) {
+            if (decSess != null && g5Encoder?.isReady == true) return
+            if (initPending) return
+            initPending = true
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            try { doInit(context.applicationContext) }
+            finally { synchronized(lock) { initPending = false } }
+        }
+    }
+
+    private fun doInit(context: Context) {
         // ApplicationInfo.dataDir is always CE (/data/data/...) regardless of context protection mode
         val dir = File(context.applicationInfo.dataDir, "files")
         val decFile   = File(dir, "whisper_base_decoder.onnx")
@@ -68,35 +80,39 @@ object WhisperRecognizer {
             return
         }
 
-        // --- Encoder: strict Tensor G5 worker ---
-        try {
-            g5Encoder = WhisperG5WorkerClient(context.applicationContext).also { it.start() }
-            Log.i(TAG, "encoder: Tensor G5 worker")
+        // --- Encoder: start outside lock — blocks up to 15 s waiting for G5 worker ---
+        val enc = try {
+            WhisperG5WorkerClient(context).also { it.start() }
+                .also { Log.i(TAG, "encoder: Tensor G5 worker") }
         } catch (e: Exception) {
-            Log.e(TAG, "G5 encoder worker failed", e)
-            g5Encoder = null
-            return
+            Log.e(TAG, "G5 encoder worker failed", e); return
         }
 
-        // --- Decoder: ORT int8 always ---
+        // --- Decoder ---
         try {
-            decSess = ortEnv.createSession(decFile.absolutePath,
+            val sess = ortEnv.createSession(decFile.absolutePath,
                 OrtSession.SessionOptions().apply { addXnnpack(mapOf()) })
-            vocab = vocabFile.readLines().toTypedArray()
+            val v = vocabFile.readLines().toTypedArray()
+            var sot = SOT; var eot = EOT; var en = EN
+            var transcribe = TRANSCRIBE; var noTimestamps = NO_TIMESTAMPS
             if (tokFile.exists()) {
                 val json = tokFile.readText()
-                SOT           = parseJsonInt(json, "sot")          ?: SOT
-                EOT           = parseJsonInt(json, "eot")          ?: EOT
-                EN            = parseJsonInt(json, "en")           ?: EN
-                TRANSCRIBE    = parseJsonInt(json, "transcribe")   ?: TRANSCRIBE
-                NO_TIMESTAMPS = parseJsonInt(json, "notimestamps") ?: NO_TIMESTAMPS
+                sot          = parseJsonInt(json, "sot")          ?: sot
+                eot          = parseJsonInt(json, "eot")          ?: eot
+                en           = parseJsonInt(json, "en")           ?: en
+                transcribe   = parseJsonInt(json, "transcribe")   ?: transcribe
+                noTimestamps = parseJsonInt(json, "notimestamps") ?: noTimestamps
             }
-            Log.i(TAG, "init OK encoder=G5 worker vocab=${vocab.size}")
+            synchronized(lock) {
+                g5Encoder = enc
+                decSess = sess
+                vocab = v
+                SOT = sot; EOT = eot; EN = en; TRANSCRIBE = transcribe; NO_TIMESTAMPS = noTimestamps
+            }
+            Log.i(TAG, "init OK encoder=G5 worker vocab=${v.size}")
         } catch (e: Exception) {
             Log.e(TAG, "ORT decoder failed", e)
-            decSess = null
-            g5Encoder?.stop()
-            g5Encoder = null
+            enc.stop()
         }
     }
 
@@ -192,7 +208,7 @@ object WhisperRecognizer {
     private fun transcribe(samples: FloatArray): String {
         val dec = decSess ?: return ""
         val mel = computeMelSpectrogram(samples)                   // [1, 80, 3000]
-        val encOut = runEncoder(mel)                               // flat [1500 * 384]
+        val encOut = runEncoder(mel)                               // flat [1500 * 512]
         return greedyDecode(dec, encOut)
     }
 
@@ -217,14 +233,15 @@ object WhisperRecognizer {
                 val idsShape  = longArrayOf(1, tokens.size.toLong())
                 val idsTensor = OnnxTensor.createTensor(ortEnv, idsBuf, idsShape)
                 try {
-                    val out = sess.run(mapOf(
+                    sess.run(mapOf(
                         "input_ids" to idsTensor,
                         "encoder_hidden_states" to encTensor,
-                    ))
-                    val logits = out[0].value as Array<*>          // [1][seq][vocab]
-                    val lastStep = (logits[0] as Array<*>).last() as FloatArray
-                    val nextTok = lastStep.indices.maxByOrNull { lastStep[it] } ?: EOT
-                    if (nextTok == EOT) { done = true } else { tokens.add(nextTok) }
+                    )).use { out ->
+                        val logits = out[0].value as Array<*>          // [1][seq][vocab]
+                        val lastStep = (logits[0] as Array<*>).last() as FloatArray
+                        val nextTok = lastStep.indices.maxByOrNull { lastStep[it] } ?: EOT
+                        if (nextTok == EOT) { done = true } else { tokens.add(nextTok) }
+                    }
                 } finally { idsTensor.close() }
             }
         } finally { encTensor.close() }
