@@ -7,6 +7,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import com.termux.spectreboard.latin.NgramContext
 import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * GRU-CIFG next-word scorer for candidate reranking.
@@ -14,7 +15,7 @@ import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
  * Model: ONNX (opset 17), input "tokens" [1, 6] LongTensor, output "logits" [1, 30000] FloatTensor.
  * Vocab: gru_vocab.txt in assets — one word per line, line index == token ID.
  *
- * inferLogits() runs ONNX exactly once per rerank() call regardless of candidate count.
+ * inferLogits() runs ONNX exactly once per scoreAll() call regardless of candidate count.
  * All candidates are scored by indexing into the shared logits array.
  */
 object GruScorer {
@@ -26,13 +27,10 @@ object GruScorer {
     private const val SEQ_LEN = 6
     private const val CONTEXT_DELIMITER = "\u001F"
 
-    private const val SCORE_BAND = 50
-    private const val MIN_SCORE_DELTA = 0.05f
-
     private val lock = Any()
     @Volatile private var session: OrtSession? = null
     @Volatile private var wordToIdx: Map<String, Int> = emptyMap()
-    @Volatile private var loading = false
+    private val loading = AtomicBoolean(false)
 
     // One-entry logits cache — ngramContext doesn't change between keystrokes within the same
     // composing word, so skip inference when the context key is unchanged.
@@ -52,9 +50,13 @@ object GruScorer {
      * through isEmpty() without blocking while the model loads.
      */
     fun start(context: Context) {
-        if (session != null || loading) return
-        loading = true
+        if (session != null) return
+        // CAS, not check-then-set: loadSettings() spawns a fresh loader thread on
+        // every call, and two racing start() calls would each build an ORT session
+        // and leak one natively.
+        if (!loading.compareAndSet(false, true)) return
         try {
+            if (session != null) return
             val lines = context.assets.open(VOCAB_ASSET).bufferedReader().readLines()
             wordToIdx = buildMap(lines.size) {
                 lines.forEachIndexed { idx, w -> put(w.lowercase(), idx) }
@@ -68,7 +70,7 @@ object GruScorer {
         } catch (_: Exception) {
             wordToIdx = emptyMap()
         } finally {
-            loading = false
+            loading.set(false)
         }
     }
 
@@ -138,37 +140,5 @@ object GruScorer {
             scores[candidate] = if (tokenId != null) logits.getOrNull(tokenId) else null
         }
         return scores
-    }
-
-    /**
-     * Re-order [suggestions] in place using GRU logits as a tiebreaker within
-     * each SCORE_BAND of dictionary scores.  Prefer [scoreAll] + combined rerank
-     * when calling alongside other scorers to avoid redundant sort passes.
-     */
-    fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
-        if (suggestions.size < 2) return
-        val scores = scoreAll(suggestions, ngramContext)
-        if (scores.isEmpty()) return
-
-        suggestions.sortWith { a, b ->
-            val dictDiff = Integer.compare(b.mScore, a.mScore)
-            if (kotlin.math.abs(b.mScore - a.mScore) > SCORE_BAND) return@sortWith dictDiff
-
-            val sa = scores[a]
-            val sb = scores[b]
-            when {
-                sa == null && sb == null -> dictDiff
-                sa == null -> 1
-                sb == null -> -1
-                else -> {
-                    val delta = sb - sa
-                    when {
-                        delta >  MIN_SCORE_DELTA -> 1
-                        delta < -MIN_SCORE_DELTA -> -1
-                        else -> dictDiff
-                    }
-                }
-            }
-        }
     }
 }

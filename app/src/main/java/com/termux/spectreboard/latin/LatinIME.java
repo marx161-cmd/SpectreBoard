@@ -607,13 +607,18 @@ public class LatinIME extends InputMethodService implements
         mInputLogic.mSuggest.clearNextWordSuggestionsCache();
         mInputLogic.updateEmojiDictionary(locale);
         mStatsUtilsManager.onLoadSettings(this, currentSettingsValues);
-        new Thread("spectre-model-loader") {
-            @Override
-            public void run() {
-                KenLmScorer.INSTANCE.start(LatinIME.this);
-                GruScorer.INSTANCE.start(LatinIME.this);
-            }
-        }.start();
+        // loadSettings() runs on every settings reload / subtype switch; only spawn
+        // the loader thread while a scorer is actually missing (start() itself is
+        // CAS-guarded, so a redundant spawn during load is still safe, just wasted).
+        if (KenLmScorer.INSTANCE.isEmpty() || GruScorer.INSTANCE.isEmpty()) {
+            new Thread("spectre-model-loader") {
+                @Override
+                public void run() {
+                    KenLmScorer.INSTANCE.start(LatinIME.this);
+                    GruScorer.INSTANCE.start(LatinIME.this);
+                }
+            }.start();
+        }
         WhisperRecognizer.INSTANCE.init(this);
     }
 

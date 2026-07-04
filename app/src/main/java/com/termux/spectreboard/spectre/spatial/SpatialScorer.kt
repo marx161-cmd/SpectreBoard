@@ -6,24 +6,31 @@ import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
 import com.termux.spectreboard.latin.common.ComposedData
 
 object SpatialScorer {
-    @Volatile private var model: Map<String, PerKeyGaussian> = emptyMap()
+    // Keyed by Char, not String: scoreTaps() looks up one key per character per
+    // candidate per keystroke, and Char lookups avoid a String allocation each time.
+    // Multi-char key values from the builder are dropped at the conversion boundary —
+    // the scoring path only ever looks up single characters, so they were unreachable.
+    @Volatile private var model: Map<Char, PerKeyGaussian> = emptyMap()
 
-    // Dictionary score band within which spatial can break ties.
-    // Candidates within this band of each other are re-ordered by spatial score.
-    // Candidates outside the band keep their dictionary ordering unchanged.
-    // Tune up to let spatial have more influence, down to make it more conservative.
-    private const val SCORE_BAND = 20
     private const val LENGTH_MISMATCH_PENALTY = 2.0
 
     /** Load persisted model from SharedPreferences into memory. Call once at IME startup. */
     fun loadFromStore(context: Context) {
         val loaded = SpatialModelStore.load(context)
-        if (loaded.isNotEmpty()) model = loaded
+        if (loaded.isNotEmpty()) model = toCharKeys(loaded)
     }
 
     /** Called by SpatialModelWorker when a fresh model is built. Thread-safe via @Volatile. */
     internal fun updateModel(newModel: Map<String, PerKeyGaussian>) {
-        model = newModel
+        model = toCharKeys(newModel)
+    }
+
+    private fun toCharKeys(m: Map<String, PerKeyGaussian>): Map<Char, PerKeyGaussian> {
+        val out = HashMap<Char, PerKeyGaussian>(m.size)
+        for ((k, v) in m) {
+            if (k.length == 1) out[k[0]] = v
+        }
+        return out
     }
 
     fun isEmpty(): Boolean = model.isEmpty()
@@ -52,34 +59,6 @@ object SpatialScorer {
     }
 
     /**
-     * Re-order [suggestions] in place using the spatial model as a tiebreaker.
-     *
-     * Only candidates within SCORE_BAND of each other swap positions — candidates
-     * with a clearly stronger dictionary score are never pushed down by spatial.
-     * This keeps the model conservative until we have enough data and confidence.
-     *
-     * [composedData] carries the tap trajectory for the current word.
-     */
-    fun rerank(suggestions: MutableList<SuggestedWordInfo>, composedData: ComposedData) {
-        if (suggestions.size < 2) return
-        val scores = scoreAll(suggestions, composedData)
-        if (scores.isEmpty()) return
-
-        suggestions.sortWith { a, b ->
-            val dictDiff = Integer.compare(b.mScore, a.mScore)
-            if (kotlin.math.abs(b.mScore - a.mScore) > SCORE_BAND) return@sortWith dictDiff
-
-            val spatialDiff = (scores[b] ?: Double.NEGATIVE_INFINITY) -
-                    (scores[a] ?: Double.NEGATIVE_INFINITY)
-            when {
-                spatialDiff > 0.0 -> 1
-                spatialDiff < 0.0 -> -1
-                else -> dictDiff
-            }
-        }
-    }
-
-    /**
      * Sum log-densities for the first min(word.length, tapCount) characters.
      * Characters not yet in the model (below minSamplesPerKey threshold) are skipped
      * rather than penalised — not enough data to be confident about those keys yet.
@@ -89,7 +68,7 @@ object SpatialScorer {
         val n = minOf(word.length, tapCount)
         val lc = word.lowercase()
         for (i in 0 until n) {
-            val gaussian = model[lc[i].toString()] ?: continue
+            val gaussian = model[lc[i]] ?: continue
             score += gaussian.logDensity(xs[i].toDouble(), ys[i].toDouble())
         }
         return score - kotlin.math.abs(word.length - tapCount) * LENGTH_MISMATCH_PENALTY

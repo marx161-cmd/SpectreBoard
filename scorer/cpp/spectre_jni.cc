@@ -13,8 +13,11 @@
 #include "lm/model.hh"
 #include "util/mmap.hh"
 
-static std::unique_ptr<lm::ngram::TrieModel> g_model;
-static const lm::ngram::TrieModel::Vocabulary* g_vocab = nullptr;
+// QuantTrieModel, not TrieModel: spectre_q8.blm is built with `build_binary
+// -q 8 -b 8 trie` which produces model type QUANT_TRIE (3).  Loading it with
+// plain TrieModel (type 2) throws a FormatLoadException at init.
+static std::unique_ptr<lm::ngram::QuantTrieModel> g_model;
+static const lm::ngram::QuantTrieModel::Vocabulary* g_vocab = nullptr;
 
 // Context state cache — avoids re-walking the same context words on every
 // keystroke while composing a single word.  The context string rarely changes
@@ -34,7 +37,7 @@ Java_com_termux_spectreboard_spectre_KenLmScorer_initNative(
         lm::ngram::Config cfg;
         cfg.messages = nullptr;
         cfg.load_method = util::LAZY;
-        g_model = std::make_unique<lm::ngram::TrieModel>(path, cfg);
+        g_model = std::make_unique<lm::ngram::QuantTrieModel>(path, cfg);
         g_vocab  = &g_model->GetVocabulary();
         g_cacheValid = false;
         ok = true;

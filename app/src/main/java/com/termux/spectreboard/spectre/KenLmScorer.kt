@@ -3,7 +3,7 @@ package com.termux.spectreboard.spectre
 
 import android.content.Context
 import com.termux.spectreboard.latin.NgramContext
-import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * KenLM n-gram scorer — in-process JNI, no subprocess.
@@ -18,11 +18,9 @@ object KenLmScorer {
 
     private const val MODEL_FILENAME = "spectre_q8.blm"
 
-    private const val SCORE_BAND = 50
-    private const val MIN_SCORE_DELTA = 0.05f
-
     private val lock = Any()
-    private var loaded = false
+    @Volatile private var loaded = false
+    private val loading = AtomicBoolean(false)
     @Volatile private var nativeAvailable = false
 
     // ---- JNI -------------------------------------------------------------------
@@ -43,12 +41,28 @@ object KenLmScorer {
 
     // ---- public API ------------------------------------------------------------
 
-    fun isEmpty(): Boolean = synchronized(lock) { !loaded }
+    /**
+     * Lock-free check — returns true while the model is loading or unloaded,
+     * so the suggestion path never blocks behind a start() in progress.
+     */
+    fun isEmpty(): Boolean = !loaded
 
-    fun start(context: Context) = synchronized(lock) {
-        if (loaded || !nativeAvailable) return@synchronized
-        val modelPath = "${context.filesDir.absolutePath}/$MODEL_FILENAME"
-        loaded = initNative(modelPath)
+    /**
+     * Load the binary model (LAZY mmap, so this is fast).  Guarded by a CAS on
+     * [loading] so concurrent start() calls from repeated loadSettings() are
+     * no-ops; initNative runs outside [lock] so scoreAll() callers are never
+     * blocked behind it.
+     */
+    fun start(context: Context) {
+        if (loaded || !nativeAvailable) return
+        if (!loading.compareAndSet(false, true)) return
+        try {
+            val modelPath = "${context.filesDir.absolutePath}/$MODEL_FILENAME"
+            val ok = initNative(modelPath)
+            synchronized(lock) { loaded = ok }
+        } finally {
+            loading.set(false)
+        }
     }
 
     fun stop() = synchronized(lock) {
@@ -79,45 +93,8 @@ object KenLmScorer {
         val contextStr = contextWords.joinToString(" ")
 
         return synchronized(lock) {
-            if (!loaded || !nativeAvailable) return@synchronized null
+            if (!loaded) return@synchronized null
             scoreAllNative(contextStr, candidates, isBOS)
-        }
-    }
-
-    /**
-     * Re-order [suggestions] in place using KenLM scores as a tiebreaker within
-     * each SCORE_BAND of dictionary scores.  Prefer [scoreAll] + combined rerank
-     * when calling alongside other scorers to avoid redundant sort passes.
-     */
-    fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
-        if (suggestions.size < 2) return
-        val candidates = Array(suggestions.size) { suggestions[it].mWord.toString().lowercase() }
-        val rawScores = scoreAll(candidates, ngramContext) ?: return
-
-        val scores = HashMap<SuggestedWordInfo, Float>(suggestions.size)
-        for (i in suggestions.indices) {
-            if (i < rawScores.size) scores[suggestions[i]] = rawScores[i]
-        }
-
-        suggestions.sortWith { a, b ->
-            val dictDiff = Integer.compare(b.mScore, a.mScore)
-            if (kotlin.math.abs(b.mScore - a.mScore) > SCORE_BAND) return@sortWith dictDiff
-
-            val sa = scores[a]
-            val sb = scores[b]
-            when {
-                sa == null && sb == null -> dictDiff
-                sa == null -> 1
-                sb == null -> -1
-                else -> {
-                    val delta = sb - sa
-                    when {
-                        delta >  MIN_SCORE_DELTA -> 1
-                        delta < -MIN_SCORE_DELTA -> -1
-                        else -> dictDiff
-                    }
-                }
-            }
         }
     }
 }
