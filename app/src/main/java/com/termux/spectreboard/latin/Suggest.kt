@@ -31,6 +31,7 @@ import com.termux.spectreboard.spectre.KenLmScorer
 import com.termux.spectreboard.spectre.spatial.SpatialScorer
 import com.termux.spectreboard.latin.utils.WordData
 import com.termux.spectreboard.latin.utils.useBackgroundGathering
+import java.util.Comparator
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
@@ -88,9 +89,7 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         val trailingSingleQuotesCount = StringUtils.getTrailingSingleQuotesCount(typedWordString)
         val capsMode = getCapsModeForTyping(wordComposer, keyboard)
         val suggestionsContainer = ArrayList(suggestionResults)
-        SpatialScorer.rerank(suggestionsContainer, wordComposer.composedDataSnapshot)
-        KenLmScorer.rerank(suggestionsContainer, ngramContext)
-        GruScorer.rerank(suggestionsContainer, ngramContext)
+        rerankCombined(suggestionsContainer, wordComposer.composedDataSnapshot, ngramContext)
         capitalizeAndAddTrailingSingleQuotes(suggestionsContainer, capsMode, trailingSingleQuotesCount, mDictionaryFacilitator.mainLocale)
         val capitalizedTypedWord = capitalize(typedWordString, capsMode, mDictionaryFacilitator.mainLocale)
 
@@ -369,6 +368,82 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             false, ""), ngramContext, keyboard, settingsValuesForSuggestion, SESSION_ID_TYPING, inputStyle)
         nextWordSuggestionsCache[ngramContext] = newResults
         return newResults
+    }
+
+    /**
+     * Single-pass combined rerank — scores every candidate once per scorer then
+     * sorts with a transitive composite comparator.  Replaces the old three-sort
+     * pipeline (Spatial → KenLM → GRU) where each tier could overwrite the
+     * ordering of the previous tier.
+     */
+    private fun rerankCombined(
+        suggestions: MutableList<SuggestedWordInfo>,
+        composedData: ComposedData,
+        ngramContext: NgramContext
+    ) {
+        if (suggestions.size < 2) return
+
+        val spatialScores = if (!SpatialScorer.isEmpty())
+            SpatialScorer.scoreAll(suggestions, composedData) else null
+
+        val kenScores: Map<SuggestedWordInfo, Float?>? = if (!KenLmScorer.isEmpty()) {
+            val candidateWords = Array(suggestions.size) {
+                suggestions[it].mWord.toString().lowercase()
+            }
+            val raw = KenLmScorer.scoreAll(candidateWords, ngramContext)
+            if (raw != null) {
+                val map = HashMap<SuggestedWordInfo, Float?>(suggestions.size)
+                for (i in suggestions.indices) {
+                    map[suggestions[i]] = if (i < raw.size) raw[i] else null
+                }
+                map
+            } else null
+        } else null
+
+        val gruScores = if (!GruScorer.isEmpty())
+            GruScorer.scoreAll(suggestions, ngramContext) else null
+
+        if (spatialScores == null && kenScores == null && gruScores == null) return
+
+        suggestions.sortWith(CombinedComparator(spatialScores, kenScores, gruScores))
+    }
+
+    private class CombinedComparator(
+        private val spatial: Map<SuggestedWordInfo, Double>?,
+        private val kenlm: Map<SuggestedWordInfo, Float?>?,
+        private val gru: Map<SuggestedWordInfo, Float?>?
+    ) : Comparator<SuggestedWordInfo> {
+
+        override fun compare(o1: SuggestedWordInfo, o2: SuggestedWordInfo): Int {
+            val band1 = o1.mScore / DICT_BAND
+            val band2 = o2.mScore / DICT_BAND
+            if (band1 != band2) return Integer.compare(band2, band1)
+
+            var cmp = compareScore(gru?.get(o2), gru?.get(o1))
+            if (cmp != 0) return cmp
+
+            cmp = compareScore(kenlm?.get(o2), kenlm?.get(o1))
+            if (cmp != 0) return cmp
+
+            spatial?.let {
+                val sa = it[o1] ?: Double.NEGATIVE_INFINITY
+                val sb = it[o2] ?: Double.NEGATIVE_INFINITY
+                cmp = java.lang.Double.compare(sb, sa)
+                if (cmp != 0) return cmp
+            }
+
+            return Integer.compare(o2.mScore, o1.mScore)
+        }
+
+        private fun compareScore(sb: Float?, sa: Float?): Int {
+            val a = sa ?: Float.NEGATIVE_INFINITY
+            val b = sb ?: Float.NEGATIVE_INFINITY
+            return java.lang.Float.compare(b, a)
+        }
+
+        companion object {
+            private const val DICT_BAND = 50
+        }
     }
 
     companion object {

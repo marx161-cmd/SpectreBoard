@@ -29,6 +29,29 @@ object SpatialScorer {
     fun isEmpty(): Boolean = model.isEmpty()
 
     /**
+     * Score every candidate with the spatial Gaussian model.
+     *
+     * Returns log-densities keyed by candidate.  Characters not yet in the model
+     * (below minSamplesPerKey threshold) are skipped rather than penalised.
+     */
+    fun scoreAll(candidates: List<SuggestedWordInfo>,
+                 composedData: ComposedData): Map<SuggestedWordInfo, Double> {
+        if (model.isEmpty()) return emptyMap()
+        val pointers = composedData.mInputPointers
+        val tapCount = pointers.pointerSize
+        if (tapCount < 2) return emptyMap()
+
+        val xs = pointers.xCoordinates
+        val ys = pointers.yCoordinates
+
+        val scores = HashMap<SuggestedWordInfo, Double>(candidates.size)
+        for (candidate in candidates) {
+            scores[candidate] = scoreTaps(candidate.mWord.toString(), xs, ys, tapCount)
+        }
+        return scores
+    }
+
+    /**
      * Re-order [suggestions] in place using the spatial model as a tiebreaker.
      *
      * Only candidates within SCORE_BAND of each other swap positions — candidates
@@ -39,33 +62,19 @@ object SpatialScorer {
      */
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, composedData: ComposedData) {
         if (suggestions.size < 2) return
-        if (model.isEmpty()) return
-        val pointers = composedData.mInputPointers
-        val tapCount = pointers.pointerSize
-        if (tapCount < 2) return
-
-        val xs = pointers.xCoordinates
-        val ys = pointers.yCoordinates
-
-        // Pre-compute spatial score for every candidate.
-        val spatialScores = HashMap<SuggestedWordInfo, Double>(suggestions.size)
-        for (candidate in suggestions) {
-            spatialScores[candidate] = scoreTaps(candidate.mWord, xs, ys, tapCount)
-        }
+        val scores = scoreAll(suggestions, composedData)
+        if (scores.isEmpty()) return
 
         suggestions.sortWith { a, b ->
-            val dictDiff = b.mScore - a.mScore
-            if (kotlin.math.abs(dictDiff) > SCORE_BAND) {
-                // Dictionary score is decisive — don't touch the order.
-                dictDiff
-            } else {
-                // Scores are close enough: let spatial break the tie.
-                val spatialDiff = (spatialScores[b] ?: 0.0) - (spatialScores[a] ?: 0.0)
-                when {
-                    spatialDiff > 0.0 -> 1
-                    spatialDiff < 0.0 -> -1
-                    else -> dictDiff
-                }
+            val dictDiff = Integer.compare(b.mScore, a.mScore)
+            if (kotlin.math.abs(b.mScore - a.mScore) > SCORE_BAND) return@sortWith dictDiff
+
+            val spatialDiff = (scores[b] ?: Double.NEGATIVE_INFINITY) -
+                    (scores[a] ?: Double.NEGATIVE_INFINITY)
+            when {
+                spatialDiff > 0.0 -> 1
+                spatialDiff < 0.0 -> -1
+                else -> dictDiff
             }
         }
     }
@@ -73,7 +82,7 @@ object SpatialScorer {
     /**
      * Sum log-densities for the first min(word.length, tapCount) characters.
      * Characters not yet in the model (below minSamplesPerKey threshold) are skipped
-     * rather than penalized — not enough data to be confident about those keys yet.
+     * rather than penalised — not enough data to be confident about those keys yet.
      */
     private fun scoreTaps(word: String, xs: IntArray, ys: IntArray, tapCount: Int): Double {
         var score = 0.0

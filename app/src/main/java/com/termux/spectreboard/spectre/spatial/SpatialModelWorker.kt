@@ -24,13 +24,16 @@ object SpatialModelWorker {
      */
     fun maybeRebuild(context: Context) {
         val dao = GestureDataDao.getInstance(context) ?: return
-        val currentRowCount = dao.count()
         val lastBuilt = SpatialModelStore.lastBuiltRowCount(context)
-        if (currentRowCount - lastBuilt < MIN_NEW_ROWS) return
         if (!rebuildInProgress.compareAndSet(false, true)) return
 
         val appContext = context.applicationContext
         scope.launch {
+            val currentRowCount = dao.count()
+            if (currentRowCount - lastBuilt < MIN_NEW_ROWS) {
+                rebuildInProgress.set(false)
+                return@launch
+            }
             try {
                 val builder = SpatialModelBuilder()
                 for (json in dao.getAllJsonData(appContext)) {

@@ -19,10 +19,11 @@ import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
  */
 object GruScorer {
 
+    private const val BEGINNING_OF_SENTENCE_TAG = "<S>"
+
     private const val ONNX_FILENAME = "gru_cifg.onnx"
     private const val VOCAB_ASSET = "gru_vocab.txt"
     private const val SEQ_LEN = 6
-    private const val OOV_IDX = 1  // [UNK] token
     private const val CONTEXT_DELIMITER = "\u001F"
 
     private const val SCORE_BAND = 50
@@ -76,7 +77,7 @@ object GruScorer {
         val tokens = Array(1) { LongArray(SEQ_LEN) }
         val offset = SEQ_LEN - ctx.size
         for ((i, w) in ctx.withIndex()) {
-            tokens[0][offset + i] = (wordToIdx[w.lowercase()] ?: OOV_IDX).toLong()
+            tokens[0][offset + i] = (wordToIdx[w.lowercase()] ?: 1).toLong()
         }
         return@synchronized try {
             val inputTensor = OnnxTensor.createTensor(env, tokens)
@@ -93,23 +94,51 @@ object GruScorer {
         }
     }
 
+    /**
+     * Score every candidate with the GRU-CIFG neural LM.
+     *
+     * Out-of-vocabulary candidates are mapped to null (not the [UNK] token score)
+     * so the combined reranker can cascade to a lower-tier scorer instead of
+     * spuriously promoting OOV words with a high-frequency [UNK] logit.
+     *
+     * The <S> beginning-of-sentence tag is stripped from the context — the model
+     * is left-padded with zeros (index 0) for short contexts.
+     */
+    fun scoreAll(candidates: List<SuggestedWordInfo>,
+                 ngramContext: NgramContext): Map<SuggestedWordInfo, Float?> {
+        val vocab = wordToIdx
+        if (vocab.isEmpty()) return emptyMap()
+
+        val rawContext = ngramContext.extractPrevWordsContextArray()
+        val context = rawContext.filter { it != BEGINNING_OF_SENTENCE_TAG }.toTypedArray()
+        val logits = inferLogits(context) ?: return emptyMap()
+
+        val scores = HashMap<SuggestedWordInfo, Float?>(candidates.size)
+        for (candidate in candidates) {
+            val tokenId = vocab[candidate.mWord.toString().lowercase()]
+            scores[candidate] = if (tokenId != null) logits.getOrNull(tokenId) else null
+        }
+        return scores
+    }
+
+    /**
+     * Re-order [suggestions] in place using GRU logits as a tiebreaker within
+     * each SCORE_BAND of dictionary scores.  Prefer [scoreAll] + combined rerank
+     * when calling alongside other scorers to avoid redundant sort passes.
+     */
     fun rerank(suggestions: MutableList<SuggestedWordInfo>, ngramContext: NgramContext) {
         if (suggestions.size < 2) return
-        val vocab = wordToIdx
-        if (vocab.isEmpty()) return
-        val context = ngramContext.extractPrevWordsContextArray()
-        val logits = inferLogits(context) ?: return
+        val scores = scoreAll(suggestions, ngramContext)
+        if (scores.isEmpty()) return
 
-        val scored = suggestions.mapIndexed { idx, s ->
-            val tokenId = vocab[s.mWord.toString().lowercase()] ?: OOV_IDX
-            Triple(idx, logits.getOrNull(tokenId), s)
-        }
+        suggestions.sortWith { a, b ->
+            val dictDiff = Integer.compare(b.mScore, a.mScore)
+            if (kotlin.math.abs(b.mScore - a.mScore) > SCORE_BAND) return@sortWith dictDiff
 
-        val ordered = scored.sortedWith { (_, sa, a), (_, sb, b) ->
-            val dictDiff = b.mScore - a.mScore
-            if (kotlin.math.abs(dictDiff) > SCORE_BAND) return@sortedWith dictDiff
+            val sa = scores[a]
+            val sb = scores[b]
             when {
-                sa == null && sb == null -> 0
+                sa == null && sb == null -> dictDiff
                 sa == null -> 1
                 sb == null -> -1
                 else -> {
@@ -122,8 +151,5 @@ object GruScorer {
                 }
             }
         }
-
-        suggestions.clear()
-        suggestions.addAll(ordered.map { (_, _, s) -> s })
     }
 }

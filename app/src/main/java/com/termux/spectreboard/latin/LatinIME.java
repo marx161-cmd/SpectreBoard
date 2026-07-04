@@ -607,8 +607,13 @@ public class LatinIME extends InputMethodService implements
         mInputLogic.mSuggest.clearNextWordSuggestionsCache();
         mInputLogic.updateEmojiDictionary(locale);
         mStatsUtilsManager.onLoadSettings(this, currentSettingsValues);
-        KenLmScorer.INSTANCE.start(this);
-        GruScorer.INSTANCE.start(this);
+        new Thread("spectre-model-loader") {
+            @Override
+            public void run() {
+                KenLmScorer.INSTANCE.start(LatinIME.this);
+                GruScorer.INSTANCE.start(LatinIME.this);
+            }
+        }.start();
         WhisperRecognizer.INSTANCE.init(this);
     }
 
