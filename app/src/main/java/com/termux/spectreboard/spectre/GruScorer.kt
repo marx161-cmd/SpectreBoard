@@ -30,18 +30,30 @@ object GruScorer {
     private const val MIN_SCORE_DELTA = 0.05f
 
     private val lock = Any()
-    private var session: OrtSession? = null
+    @Volatile private var session: OrtSession? = null
     @Volatile private var wordToIdx: Map<String, Int> = emptyMap()
+    @Volatile private var loading = false
 
     // One-entry logits cache — ngramContext doesn't change between keystrokes within the same
     // composing word, so skip inference when the context key is unchanged.
     private var cachedContextKey: String? = null
     private var cachedLogits: FloatArray? = null
 
-    fun isEmpty(): Boolean = synchronized(lock) { session == null }
+    /**
+     * Lock-free check — returns true while the model is loading or unloaded,
+     * so the suggestion path never blocks on the long-running start() call.
+     */
+    fun isEmpty(): Boolean = session == null
 
-    fun start(context: Context) = synchronized(lock) {
-        if (session != null) return@synchronized
+    /**
+     * Build vocab and ORT session asynchronously (called from a background
+     * thread in LatinIME.loadSettings).  The slow work (vocab load, session
+     * construction) happens outside [lock] so the suggestion thread can pass
+     * through isEmpty() without blocking while the model loads.
+     */
+    fun start(context: Context) {
+        if (session != null || loading) return
+        loading = true
         try {
             val lines = context.assets.open(VOCAB_ASSET).bufferedReader().readLines()
             wordToIdx = buildMap(lines.size) {
@@ -49,10 +61,14 @@ object GruScorer {
             }
             val modelPath = "${context.filesDir.absolutePath}/$ONNX_FILENAME"
             val options = OrtSession.SessionOptions().apply { addXnnpack(mapOf()) }
-            session = OrtEnvironment.getEnvironment().createSession(modelPath, options)
+            val newSession = OrtEnvironment.getEnvironment().createSession(modelPath, options)
+            synchronized(lock) {
+                session = newSession
+            }
         } catch (_: Exception) {
-            session = null
             wordToIdx = emptyMap()
+        } finally {
+            loading = false
         }
     }
 
@@ -97,9 +113,12 @@ object GruScorer {
     /**
      * Score every candidate with the GRU-CIFG neural LM.
      *
-     * Out-of-vocabulary candidates are mapped to null (not the [UNK] token score)
-     * so the combined reranker can cascade to a lower-tier scorer instead of
-     * spuriously promoting OOV words with a high-frequency [UNK] logit.
+     * Out-of-vocabulary candidates are mapped to null (not the [UNK] token score).
+     * The combined comparator treats null as -∞, so OOV candidates lose to any
+     * in-vocab candidate within their dict band.  This avoids spuriously promoting
+     * OOV words with a high-frequency [UNK] logit, but note that correct-in-context
+     * rare words outside the 30k vocab will also demote — KenLM's opinion on them
+     * only matters when both candidates are OOV.
      *
      * The <S> beginning-of-sentence tag is stripped from the context — the model
      * is left-padded with zeros (index 0) for short contexts.
