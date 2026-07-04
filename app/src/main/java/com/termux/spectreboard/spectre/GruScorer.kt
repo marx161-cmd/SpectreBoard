@@ -21,7 +21,7 @@ object GruScorer {
 
     private const val BEGINNING_OF_SENTENCE_TAG = "<S>"
 
-    private const val ONNX_FILENAME = "gru_cifg.onnx"
+    private const val ONNX_FILENAME = "gru_cifg_int8.onnx"
     private const val VOCAB_ASSET = "gru_vocab.txt"
     private const val SEQ_LEN = 6
     private const val CONTEXT_DELIMITER = "\u001F"

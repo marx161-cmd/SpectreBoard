@@ -16,7 +16,7 @@ object KenLmScorer {
 
     private const val BEGINNING_OF_SENTENCE_TAG = "<S>"
 
-    private const val MODEL_FILENAME = "spectre.blm"
+    private const val MODEL_FILENAME = "spectre_q8.blm"
 
     private const val SCORE_BAND = 50
     private const val MIN_SCORE_DELTA = 0.05f
