@@ -9,6 +9,7 @@ package com.termux.spectreboard.latin.inputlogic;
 import static com.termux.spectreboard.latin.common.SuggestionSpanUtilsKt.getTextWithSuggestionSpan;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.os.SystemClock;
 import android.text.InputType;
 import android.text.SpannableString;
@@ -24,6 +25,7 @@ import android.view.inputmethod.EditorInfo;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import com.termux.spectreboard.compat.AppWorkarounds;
 import com.termux.spectreboard.event.Event;
 import com.termux.spectreboard.event.InputTransaction;
 import com.termux.spectreboard.keyboard.Keyboard;
@@ -750,11 +752,11 @@ public final class InputLogic {
                 // is being handled in {@link KeyboardState#onEvent(Event,int)}.
                 // If disabled, current clipboard content is committed.
                 if (!sv.mClipboardHistoryEnabled) {
-                    sendDownUpKeyEvent(KeyEvent.KEYCODE_PASTE);
+                    paste(mLatinIME.getCurrentInputEditorInfo().packageName);
                 }
                 break;
             case KeyCode.CLIPBOARD_PASTE:
-                sendDownUpKeyEvent(KeyEvent.KEYCODE_PASTE);
+                paste(mLatinIME.getCurrentInputEditorInfo().packageName);
                 break;
             case KeyCode.SHIFT_ENTER:
                 // todo: try using sendDownUpKeyEventWithMetaState() and remove the key code maybe
@@ -2674,6 +2676,12 @@ public final class InputLogic {
     // never need to know this.
     public int getComposingLength() {
         return mWordComposer.size();
+    }
+
+    private void paste(String packageName) {
+        if (AppWorkarounds.INSTANCE.doesntCareAboutKeycodePaste(packageName) || Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+            sendDownUpKeyEventWithMetaState(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON);
+        else sendDownUpKeyEvent(KeyEvent.KEYCODE_PASTE);
     }
 
     private void enterInlineEmojiSearchIfNeeded(int codePoint, SettingsValues settingsValues) {
