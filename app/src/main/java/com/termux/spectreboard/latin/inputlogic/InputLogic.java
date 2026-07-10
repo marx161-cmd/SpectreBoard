@@ -2700,9 +2700,12 @@ public final class InputLogic {
     }
 
     private void paste(String packageName) {
-        if (AppWorkarounds.INSTANCE.doesntCareAboutKeycodePaste(packageName) || Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
-            sendDownUpKeyEventWithMetaState(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON);
-        else sendDownUpKeyEvent(KeyEvent.KEYCODE_PASTE);
+        sendDownUpKeyEventWithMetaState(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON);
+        // looks like there are more apps that don't care about KeyEvent.KEYCODE_PASTE but work with CTRL+V
+        // so let's try using CRTL+V and hope there are no apps that require different things
+//        if (AppWorkarounds.INSTANCE.doesntCareAboutKeycodePaste(packageName) || Build.VERSION.SDK_INT < Build.VERSION_CODES.N)
+//            sendDownUpKeyEventWithMetaState(KeyEvent.KEYCODE_V, KeyEvent.META_CTRL_ON);
+//        else sendDownUpKeyEvent(KeyEvent.KEYCODE_PASTE);
     }
 
     private void enterInlineEmojiSearchIfNeeded(int codePoint, SettingsValues settingsValues) {
