@@ -47,7 +47,7 @@ object PhoneticExpander {
         return results.distinct()
     }
 
-    val isLoaded: Boolean get() = hashToWords.isNotEmpty()
+    val isLoaded: Boolean get() = loaded
 
     fun doubleMetaphone(value: String): Pair<String, String> {
         if (value.isEmpty()) return Pair("", "")
