@@ -25,6 +25,7 @@ object FuzzyExpander {
         prevRow: IntArray,
         results: MutableList<String>
     ) {
+        if (results.size >= MAX_RESULTS) return
         val maxDist = MAX_DISTANCE
         val cols = query.length + 1
 

@@ -38,6 +38,11 @@ object NeuralGestureEngine {
                 ortEnv = OrtEnvironment.getEnvironment()
                 encoderSession = loadSession(NeuralConfig.ENCODER_MODEL)
                 decoderSession = loadSession(NeuralConfig.DECODER_MODEL)
+
+                val tokenizerJson = this.context.assets.open(NeuralConfig.TOKENIZER_JSON)
+                    .bufferedReader().use { it.readText() }
+                Tokenizer.loadFromJson(tokenizerJson)
+
                 vocabTrie.loadFromAssets(this.context, NeuralConfig.DICTIONARY)
                 Log.i(TAG, "Loaded ${vocabTrie.size} words into vocabulary")
                 beamDecoder = BeamSearchDecoder(

@@ -337,10 +337,10 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             settingsValuesForSuggestion, SESSION_ID_GESTURE, inputStyle
         )
 
-        // Ensemble: merge CleverKeys neural predictions into the candidate pool
-        // Google candidates get a 1.2x score boost; CleverKeys candidates get neutral score
+        // Ensemble: merge CleverKeys neural predictions into the candidate pool.
+        // Only run at gesture end (TAIL_BATCH), not on every drag tick (UPDATE_BATCH).
         val neuralEngine = NeuralGestureEngine
-        if (neuralEngine.initialized) {
+        if (neuralEngine.initialized && inputStyle == SuggestedWords.INPUT_STYLE_TAIL_BATCH) {
             val pointers = wordComposer.inputPointers
             val count = pointers.pointerSize
             if (count >= 3) {

@@ -6,16 +6,24 @@ import android.util.Log
 object PhoneticExpander {
     private const val TAG = "PhoneticExpander"
     private val hashToWords = HashMap<String, MutableList<String>>()
+    @Volatile private var loaded = false
 
     fun load(words: Collection<String>) {
-        hashToWords.clear()
+        synchronized(this) {
+            if (loaded) return
+            hashToWords.clear()
         for (word in words) {
-            val hash = doubleMetaphone(word)
-            if (hash.isNotEmpty()) {
-                hashToWords.getOrPut(hash) { mutableListOf() }.add(word)
+            val (primary, secondary) = doubleMetaphone(word)
+            if (primary.isNotEmpty()) {
+                hashToWords.getOrPut(primary) { mutableListOf() }.add(word)
+            }
+            if (secondary.isNotEmpty() && secondary != primary) {
+                hashToWords.getOrPut(secondary) { mutableListOf() }.add(word)
             }
         }
         Log.i(TAG, "PhoneticExpander loaded: ${hashToWords.values.sumOf { it.size }} words into ${hashToWords.size} buckets")
+            loaded = true
+        }
     }
 
     fun loadFromAssets(context: Context, assetPath: String) {
@@ -32,14 +40,17 @@ object PhoneticExpander {
     }
 
     fun expand(word: String): List<String> {
-        val hash = doubleMetaphone(word)
-        return if (hash.isNotEmpty()) hashToWords[hash] ?: emptyList() else emptyList()
+        val (primary, secondary) = doubleMetaphone(word)
+        val results = mutableListOf<String>()
+        if (primary.isNotEmpty()) hashToWords[primary]?.let { results.addAll(it) }
+        if (secondary.isNotEmpty() && secondary != primary) hashToWords[secondary]?.let { results.addAll(it) }
+        return results.distinct()
     }
 
     val isLoaded: Boolean get() = hashToWords.isNotEmpty()
 
-    fun doubleMetaphone(value: String): String {
-        if (value.isEmpty()) return ""
+    fun doubleMetaphone(value: String): Pair<String, String> {
+        if (value.isEmpty()) return Pair("", "")
 
         var primary = ""
         var secondary = ""
@@ -365,8 +376,7 @@ object PhoneticExpander {
             }
         }
 
-        val result = if (primary.length > 4) primary.substring(0, 4) else primary.padEnd(4, '0').substring(0, 4)
-        return result.replace("0", "").trimEnd()
+        return Pair(primary.take(4), secondary.take(4))
     }
 
     private fun isVowel(ch: Char): Boolean = ch in "AEIOUY"

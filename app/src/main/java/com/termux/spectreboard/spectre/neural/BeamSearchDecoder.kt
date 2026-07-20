@@ -178,13 +178,14 @@ class BeamSearchDecoder(
 
     private fun expandBeam(beam: BeamState, logProbs: FloatArray, candidates: MutableList<BeamState>) {
         applyTrieMasking(beam, logProbs)
-        val topIndices = getTopK(logProbs, NeuralConfig.BEAM_WIDTH)
+        val normalized = logSoftmax(logProbs)
+        val topIndices = getTopK(normalized, NeuralConfig.BEAM_WIDTH)
 
         for (idx in topIndices) {
             if (idx == NeuralConfig.SOS_IDX.toInt() || idx == NeuralConfig.PAD_IDX.toInt()) continue
             val newBeam = BeamState(beam)
             newBeam.tokens.add(idx)
-            newBeam.score += -logProbs[idx]
+            newBeam.score += -normalized[idx]
             if (idx == NeuralConfig.EOS_IDX.toInt()) newBeam.finished = true
             candidates.add(newBeam)
         }
