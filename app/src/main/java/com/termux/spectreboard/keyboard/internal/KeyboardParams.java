@@ -33,6 +33,7 @@ import java.util.TreeSet;
 
 public class KeyboardParams {
     private static final int DEFAULT_KEYBOARD_COLUMNS = 10;
+    private static final String ARTEMIS_PACKAGE_PREFIX = "com.limelight";
     public static final int DEFAULT_KEYBOARD_ROWS = 4;
 
     public KeyboardId mId;
@@ -277,6 +278,14 @@ public class KeyboardParams {
             keyAttr.recycle();
             keyboardAttr.recycle();
         }
-        setTabletExtraKeys = Settings.getInstance().isTablet() && !mId.mSubtype.isCustom();
+        setTabletExtraKeys = Settings.getInstance().isTablet()
+                && !mId.mSubtype.isCustom()
+                && !isArtemisTarget();
+    }
+
+    private boolean isArtemisTarget() {
+        return mId.mEditorInfo != null
+                && mId.mEditorInfo.packageName != null
+                && mId.mEditorInfo.packageName.startsWith(ARTEMIS_PACKAGE_PREFIX);
     }
 }

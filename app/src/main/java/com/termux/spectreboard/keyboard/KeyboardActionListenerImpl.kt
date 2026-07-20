@@ -17,6 +17,7 @@ import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.exec.ExecutionMode
+import com.termux.spectreboard.spectre.exec.MacroManager
 import com.termux.spectreboard.spectre.exec.SpectreBoardExecutor
 import com.termux.spectreboard.latin.AudioAndHapticFeedbackManager
 import com.termux.spectreboard.latin.EmojiAltPhysicalKeyDetector
@@ -155,6 +156,17 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                     },
                     onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
                 )
+                return
+            }
+            in MacroManager.MACRO_CODE_MIN..MacroManager.MACRO_CODE_MAX -> {
+                MacroManager.codeToMacro(primaryCode)?.let { macro ->
+                    Thread {
+                        try {
+                            ProcessBuilder("/data/data/com.termux/files/usr/bin/bash", macro.absolutePath)
+                                .start()
+                        } catch (_: Exception) {}
+                    }.start()
+                }
                 return
             }
         }

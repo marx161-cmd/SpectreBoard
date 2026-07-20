@@ -6,6 +6,7 @@
 package com.termux.spectreboard.keyboard.internal.keyboard_parser.floris
 
 import android.view.KeyEvent
+import com.termux.spectreboard.spectre.exec.MacroManager
 
 // taken from FlorisBoard and modified
 object KeyCode {
@@ -215,6 +216,8 @@ object KeyCode {
         BACKGROUND_GATHERING, BACKGROUND_GATHERING_TEMP_OFF,
         EXEC_LOCAL, EXEC_REMOTE, DIRECT_INPUT, WHISPER_MIC
         -> this
+
+        in MacroManager.MACRO_CODE_MIN..MacroManager.MACRO_CODE_MAX -> this
 
         // conversion
         IME_UI_MODE_TEXT -> ALPHA

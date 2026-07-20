@@ -23,6 +23,9 @@ import com.termux.spectreboard.latin.utils.POPUP_KEYS_NUMBER
 import com.termux.spectreboard.latin.utils.replaceFirst
 import com.termux.spectreboard.latin.utils.splitAt
 import com.termux.spectreboard.latin.utils.sumOf
+import com.termux.spectreboard.spectre.exec.MacroManager
+import com.termux.spectreboard.keyboard.internal.PopupKeySpec
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -86,6 +89,7 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
             }
         }
 
+        injectNumberRowMacros(keysInRows)
         return keysInRows
     }
 
@@ -332,6 +336,49 @@ class KeyboardParser(private val params: KeyboardParams, private val context: Co
         "pcqwerty" -> true
         "lao", "thai", "korean_sebeolsik_390", "korean_sebeolsik_final" -> params.mPopupKeyOrder.contains(POPUP_KEYS_LAYOUT)
         else -> false
+    }
+
+    private fun injectNumberRowMacros(keysInRows: ArrayList<ArrayList<Key.KeyParams>>) {
+        android.util.Log.i("MacroManagerDbg", "inject enabled=${params.mId.mNumberRowEnabled} rows=${keysInRows.size}")
+        if (!params.mId.mNumberRowEnabled || keysInRows.isEmpty()) return
+        val numberRow = keysInRows[0]
+        val locale = params.mId.locale
+        val needsToUpcase = false
+
+        for (i in numberRow.indices) {
+            val key = numberRow[i]
+            val folderNum = folderForNumberKey(key, i)
+            val cnt = if (folderNum < 0) -1 else MacroManager.getFolderMacros(folderNum)?.size ?: 0
+            android.util.Log.i("MacroManagerDbg", "numkey i=$i code=${key.mCode} label='${key.mLabel}' folder=$folderNum macros=$cnt")
+            if (folderNum < 0) continue
+
+            val macros = MacroManager.getFolderMacros(folderNum) ?: continue
+
+            val newPopupKeys = Array<PopupKeySpec>(macros.size) { j ->
+                val code = -(MacroManager.MACRO_CODE_BASE + folderNum * 100 + j)
+                val spec = "${macros[j].label}|!code/$code"
+                PopupKeySpec(spec, needsToUpcase, locale)
+            }
+
+            key.mPopupKeys = newPopupKeys
+            key.mPopupKeysColumnAndFlags =
+                Key.POPUP_KEYS_MODE_MAX_COLUMN_WITH_AUTO_ORDER or
+                (params.mMaxPopupKeysKeyboardColumn and Key.POPUP_KEYS_COLUMN_NUMBER_MASK)
+            key.mActionFlags = key.mActionFlags or Key.ACTION_FLAGS_ENABLE_LONG_PRESS
+        }
+    }
+
+    private fun folderForNumberKey(key: Key.KeyParams, position: Int): Int {
+        val code = key.mCode
+        if (code in 48..57) return code - 48
+        if (code == KeyCode.UNSPECIFIED || code == KeyCode.NOT_SPECIFIED) {
+            return when (position) {
+                in 0..8 -> position + 1
+                9 -> 0
+                else -> -1
+            }
+        }
+        return -1
     }
 
     companion object {

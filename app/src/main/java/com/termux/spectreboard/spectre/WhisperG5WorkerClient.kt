@@ -41,7 +41,7 @@ class WhisperG5WorkerClient(private val context: Context) {
             "--model_path=${model.absolutePath}",
             "--dispatch_lib_dir=$nativeLibDir",
         )
-        pb.environment()["LD_LIBRARY_PATH"] = "$nativeLibDir:/vendor/lib64"
+        pb.environment()["LD_LIBRARY_PATH"] = "$nativeLibDir:/system/lib64:/vendor/lib64"
         pb.redirectErrorStream(false)
 
         process = pb.start()

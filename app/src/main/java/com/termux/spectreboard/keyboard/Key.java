@@ -112,7 +112,7 @@ public class Key implements Comparable<Key> {
     private final PopupKeySpec[] mPopupKeys;
     /** Popup keys column number and flags */
     private final int mPopupKeysColumnAndFlags;
-    private static final int POPUP_KEYS_COLUMN_NUMBER_MASK = 0x000000ff;
+    public static final int POPUP_KEYS_COLUMN_NUMBER_MASK = 0x000000ff;
     // If this flag is specified, popup keys keyboard should have the specified number of columns.
     // Otherwise popup keys keyboard should have less than or equal to the specified maximum number
     // of columns.
@@ -120,7 +120,7 @@ public class Key implements Comparable<Key> {
     // If this flag is specified, the order of popup keys is determined by the order in the popup
     // keys' specification. Otherwise the order of popup keys is automatically determined.
     private static final int POPUP_KEYS_FLAGS_FIXED_ORDER = 0x00000200;
-    private static final int POPUP_KEYS_MODE_MAX_COLUMN_WITH_AUTO_ORDER = 0;
+    public static final int POPUP_KEYS_MODE_MAX_COLUMN_WITH_AUTO_ORDER = 0;
     private static final int POPUP_KEYS_MODE_FIXED_COLUMN_WITH_AUTO_ORDER = POPUP_KEYS_FLAGS_FIXED_COLUMN;
     private static final int POPUP_KEYS_MODE_FIXED_COLUMN_WITH_FIXED_ORDER = (POPUP_KEYS_FLAGS_FIXED_COLUMN | POPUP_KEYS_FLAGS_FIXED_ORDER);
     private static final int POPUP_KEYS_FLAGS_HAS_LABELS = 0x40000000;
@@ -145,7 +145,7 @@ public class Key implements Comparable<Key> {
     private static final int ACTION_FLAGS_IS_REPEATABLE = 0x01;
     private static final int ACTION_FLAGS_NO_KEY_PREVIEW = 0x02;
     private static final int ACTION_FLAGS_ALT_CODE_WHILE_TYPING = 0x04;
-    private static final int ACTION_FLAGS_ENABLE_LONG_PRESS = 0x08;
+    public static final int ACTION_FLAGS_ENABLE_LONG_PRESS = 0x08;
 
     @Nullable
     private final KeyVisualAttributes mKeyVisualAttributes;
@@ -1004,10 +1004,10 @@ public class Key implements Comparable<Key> {
         @Nullable public final String mHintIconName;
         public final int mLabelFlags;
         @Nullable public final String mIconName;
-        @Nullable public final PopupKeySpec[] mPopupKeys;
-        public final int mPopupKeysColumnAndFlags;
+        @Nullable public PopupKeySpec[] mPopupKeys;
+        public int mPopupKeysColumnAndFlags;
         public final int mBackgroundType;
-        public final int mActionFlags;
+        public int mActionFlags;
         @Nullable public final KeyVisualAttributes mKeyVisualAttributes;
         @Nullable final OptionalAttributes mOptionalAttributes;
         public final boolean mEnabled;
