@@ -855,6 +855,16 @@ public class LatinIME extends InputMethodService implements
             return;
         }
 
+        if (Constants.Subtype.VOICE_MODE.equals(subtype.getMode())) {
+            // Standard mic key resolved to our own voice-mode subtype (see method.xml) instead
+            // of switching away to a different app. This is only ever meant as a same-IME
+            // trigger, never real UI state: revert immediately and toggle Whisper directly
+            // through the same path the WHISPER_MIC toolbar key already uses.
+            mRichImm.switchToOwnSubtype(this, oldSubtype);
+            mKeyboardActionListener.onCodeInput(KeyCode.WHISPER_MIC, Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
+            return;
+        }
+
         mSubtypeState.onSubtypeChanged(oldSubtype, subtype);
         StatsUtils.onSubtypeChanged(oldSubtype, subtype);
         mRichImm.onSubtypeChanged(subtype);

@@ -1320,4 +1320,19 @@
         android:imeSubtypeExtraValue="AsciiCapable,EnabledWhenDefaultIsNotAsciiCapable,EmojiCapable"
         android:isAsciiCapable="true"
     />
+    <!-- Not a real keyboard layout: declared as a voice-mode subtype purely so the system's
+         shortcut-IME lookup (used by the standard mic key) resolves back to SpectreBoard
+         itself instead of switching away to a different app. LatinIME intercepts this subtype
+         in onCurrentInputMethodSubtypeChanged, immediately reverts to the previous keyboard
+         subtype, and triggers the built-in Whisper mic instead of ever rendering it. -->
+    <subtype android:icon="@drawable/sym_keyboard_voice_lxx"
+        android:label="@string/subtype_voice_whisper"
+        android:subtypeId="0x53504257"
+        android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US"
+        android:imeSubtypeMode="voice"
+        android:imeSubtypeExtraValue=""
+        android:isAuxiliary="true"
+        android:overridesImplicitlyEnabledSubtype="true"
+    />
 </input-method>

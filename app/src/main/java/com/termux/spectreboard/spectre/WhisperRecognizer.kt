@@ -1,5 +1,7 @@
 package com.termux.spectreboard.spectre
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -9,6 +11,8 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -50,8 +54,17 @@ object WhisperRecognizer {
     @Volatile private var initPending = false
     private var audioRecord: AudioRecord? = null
     private var job: Job? = null
+    private var progressTickerJob: Job? = null
     private var sessionDir: File? = null
     private var snippetIdx = 0
+
+    // Punch-hole ring integration (eu.hxreborn.phdp): a plain ongoing progress notification.
+    // phdp hooks SystemUI's own NotificationListener and renders any allow-listed package's
+    // android.progress/android.progressMax extras as a ring around the camera cutout — add
+    // com.termux.spectreboard to its package allow-list to see this. Counts DOWN from
+    // MAX_SECONDS to 0 so the ring depletes like a countdown rather than filling like a download.
+    private const val NOTIF_CHANNEL = "whisper_progress"
+    private const val NOTIF_ID = 7001
 
     var isRecording = false
         private set
@@ -142,6 +155,7 @@ object WhisperRecognizer {
         isRecording = true
         onStateChange()
         vibrate(context, VibrationEffect.EFFECT_CLICK)
+        startProgressNotification(context)
 
         job = CoroutineScope(Dispatchers.IO).launch {
             val buf = FloatArray(CHUNK_SAMPLES)
@@ -151,6 +165,7 @@ object WhisperRecognizer {
                 Log.e(TAG, "startRecording failed", e)
                 stopRec(rec)
                 isRecording = false
+                stopProgressNotification(context)
                 withContext(Dispatchers.Main) { onStateChange() }
                 return@launch
             }
@@ -158,6 +173,7 @@ object WhisperRecognizer {
             stopRec(rec)
 
             isRecording = false
+            stopProgressNotification(context)
             withContext(Dispatchers.Main) { onStateChange() }
 
             if (read > 0) {
@@ -407,6 +423,51 @@ object WhisperRecognizer {
         } else {
             v.vibrate(if (effectId == VibrationEffect.EFFECT_DOUBLE_CLICK) 120L else 50L)
         }
+    }
+
+    private fun ensureNotifChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        mgr.createNotificationChannel(
+            NotificationChannel(NOTIF_CHANNEL, "Whisper recording", NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun postProgress(context: Context, secondsRemaining: Int) {
+        val notification = NotificationCompat.Builder(context, NOTIF_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setContentTitle("Listening…")
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setProgress(MAX_SECONDS, secondsRemaining.coerceIn(0, MAX_SECONDS), false)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIF_ID, notification)
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS not granted — silently drop
+        }
+    }
+
+    private fun startProgressNotification(context: Context) {
+        ensureNotifChannel(context)
+        postProgress(context, MAX_SECONDS)
+        progressTickerJob = CoroutineScope(Dispatchers.Default).launch {
+            var elapsed = 0
+            while (isRecording && elapsed < MAX_SECONDS) {
+                delay(1000)
+                elapsed++
+                if (isRecording) postProgress(context, MAX_SECONDS - elapsed)
+            }
+        }
+    }
+
+    private fun stopProgressNotification(context: Context) {
+        progressTickerJob?.cancel()
+        progressTickerJob = null
+        try {
+            NotificationManagerCompat.from(context).cancel(NOTIF_ID)
+        } catch (_: Exception) {}
     }
 
     private fun parseJsonInt(json: String, key: String): Int? {

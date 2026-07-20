@@ -22,7 +22,8 @@ fun getTextWithAutoCorrectionIndicatorUnderline(context: Context?, text: String,
     return spannable
 }
 
-fun getTextWithSuggestionSpan(context: Context, pickedWord: String, suggestedWords: SuggestedWords, locale: Locale): CharSequence {
+fun getTextWithSuggestionSpan(context: Context, pickedWord: String, suggestedWords: SuggestedWords, locale: Locale,
+                               commitType: Int = 0): CharSequence {
     if (pickedWord.isEmpty() || suggestedWords.isEmpty
         || suggestedWords.isPrediction || suggestedWords.isPunctuationSuggestions
     ) {
@@ -41,7 +42,9 @@ fun getTextWithSuggestionSpan(context: Context, pickedWord: String, suggestedWor
             suggestionsList.add(info.mWord)
         }
     }
-    val suggestionSpan = SuggestionSpan(context, locale, suggestionsList.toTypedArray(), 0, null)
+    val flags = if (commitType == com.termux.spectreboard.latin.LastComposedWord.COMMIT_TYPE_DECIDED_WORD)
+        SuggestionSpan.FLAG_AUTO_CORRECTION else 0
+    val suggestionSpan = SuggestionSpan(context, locale, suggestionsList.toTypedArray(), flags, null)
     val spannable = SpannableString(pickedWord)
     spannable.setSpan(suggestionSpan, 0, pickedWord.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
     return spannable

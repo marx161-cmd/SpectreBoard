@@ -1258,6 +1258,8 @@ New dictionary:
     <string name="exec_local" tools:keep="@string/exec_local">Run local</string>
     <string name="exec_remote" tools:keep="@string/exec_remote">Run remote</string>
     <string name="whisper_mic" tools:keep="@string/whisper_mic">Whisper mic</string>
+    <!-- Label for the internal voice-mode subtype used to route the standard mic key to the built-in Whisper engine, see method.xml -->
+    <string name="subtype_voice_whisper" tools:keep="@string/subtype_voice_whisper">Voice input (Whisper)</string>
     <!-- Review screen menu entry to display actively gathered data
      string will probably be removed once data gathering is finished (end of 2026 latest) -->
     <string name="gesture_data_show_active">Show actively gathered data</string>

@@ -44,6 +44,8 @@ public final class Constants {
     public static final class Subtype {
         /** The subtype mode used to indicate that the subtype is a keyboard. */
         public static final String KEYBOARD_MODE = "keyboard";
+        /** The subtype mode used for the self-targeted Whisper voice trigger, see method.xml. */
+        public static final String VOICE_MODE = "voice";
 
         // some extra values:
         //  TrySuppressingImeSwitcher: not documented, but used in Android source

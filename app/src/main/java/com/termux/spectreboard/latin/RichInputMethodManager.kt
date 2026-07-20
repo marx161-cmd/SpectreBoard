@@ -136,6 +136,18 @@ class RichInputMethodManager private constructor() {
         }
     }
 
+    /** Switch to a subtype of this IME itself, e.g. reverting after a same-IME shortcut trigger
+     *  (see the voice-mode subtype in method.xml) that should never actually be adopted as UI state. */
+    fun switchToOwnSubtype(inputMethodService: InputMethodService, subtype: InputMethodSubtype) {
+        val imiId = inputMethodInfoOfThisIme.id
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            inputMethodService.switchInputMethod(imiId, subtype)
+        } else {
+            val token = inputMethodService.window.window?.attributes?.token ?: return
+            @Suppress("Deprecation") imm.setInputMethodAndSubtype(token, imiId, subtype)
+        }
+    }
+
     // todo: is shortcutIme only voice input, or can it be something else?
     //  if always voice input, rename it and other things like mHasShortcutKey
     private fun updateShortcutIme() {

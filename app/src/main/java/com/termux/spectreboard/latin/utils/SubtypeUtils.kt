@@ -48,7 +48,7 @@ fun getResourceSubtypes(resources: Resources): List<InputMethodSubtype> {
             val localeString = xml.getAttributeValue(namespace, "imeSubtypeLocale").intern()
             val languageTag = xml.getAttributeValue(namespace, "languageTag").intern()
             val imeSubtypeMode = xml.getAttributeValue(namespace, "imeSubtypeMode")
-            val imeSubtypeExtraValue = xml.getAttributeValue(namespace, "imeSubtypeExtraValue").intern()
+            val imeSubtypeExtraValue = (xml.getAttributeValue(namespace, "imeSubtypeExtraValue") ?: "").intern()
             val isAsciiCapable = xml.getAttributeBooleanValue(namespace, "isAsciiCapable", false)
             val b = InputMethodSubtype.InputMethodSubtypeBuilder()
             b.setSubtypeIconResId(icon)

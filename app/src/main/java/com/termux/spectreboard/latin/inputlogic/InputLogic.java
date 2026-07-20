@@ -33,6 +33,7 @@ import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode;
 import com.termux.spectreboard.latin.dictionary.Dictionary;
 import com.termux.spectreboard.latin.DictionaryFacilitator;
 import com.termux.spectreboard.latin.dictionary.DictionaryFactory;
+import com.termux.spectreboard.latin.CorrectionHistory;
 import com.termux.spectreboard.latin.LastComposedWord;
 import com.termux.spectreboard.latin.LatinIME;
 import com.termux.spectreboard.latin.NgramContext;
@@ -102,6 +103,7 @@ public final class InputLogic {
     }
 
     public LastComposedWord mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD;
+    public CorrectionHistory mCorrectionHistory = new CorrectionHistory(8);
     // This has package visibility so it can be accessed from InputLogicHandler.
     /* package */ final WordComposer mWordComposer;
     public final RichInputConnection mConnection;
@@ -2431,7 +2433,7 @@ public final class InputLogic {
         // essentially reverted https://github.com/lineageos/android_packages_inputmethods_LatinIME/commit/ee6de1466bc98e27bd414c9a7451f2aee3f9e721
         // can't find any drawback (performance, neither when setting nor when reading)
         final CharSequence chosenWordWithSuggestions = getTextWithSuggestionSpan(mLatinIME, chosenWord,
-                mSuggestedWords, getDictionaryFacilitatorLocale());
+                mSuggestedWords, getDictionaryFacilitatorLocale(), commitType);
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = SystemClock.elapsedRealtime() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "
@@ -2470,6 +2472,15 @@ public final class InputLogic {
         // LastComposedWord#didCommitTypedWord by string equality of the remembered
         // strings.
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
+        mCorrectionHistory.push(mLastComposedWord);
+
+        // Log override events for future model retraining
+        if (commitType == LastComposedWord.COMMIT_TYPE_MANUAL_PICK
+                && mLastComposedWord.canRevertCommit()
+                && !TextUtils.isEmpty(mLastComposedWord.mTypedWord)) {
+            Log.i("CorrectionOverride", "typed=\"" + mLastComposedWord.mTypedWord
+                    + "\" picked=\"" + chosenWord + "\"");
+        }
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = SystemClock.elapsedRealtime() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "
