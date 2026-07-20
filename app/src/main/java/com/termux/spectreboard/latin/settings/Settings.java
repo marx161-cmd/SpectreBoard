@@ -139,6 +139,7 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_GESTURE_SPACE_AWARE = "gesture_space_aware";
     public static final String PREF_GESTURE_FAST_TYPING_COOLDOWN = "gesture_fast_typing_cooldown";
     public static final String PREF_GESTURE_TRAIL_FADEOUT_DURATION = "gesture_trail_fadeout_duration";
+    public static final String PREF_GESTURE_NEURAL_ENGINE = "gesture_neural_engine";
     public static final String PREF_SHOW_SETUP_WIZARD_ICON = "show_setup_wizard_icon";
     public static final String PREF_USE_CONTACTS = "use_contacts";
     public static final String PREF_USE_APPS = "use_apps";
@@ -225,6 +226,10 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
                  PREF_DONT_SHOW_MISSING_DICTIONARY_DIALOG, PREF_SELECTED_SUBTYPE -> false;
             default -> !key.startsWith(PREF_SAVED_APP_SUBTYPE_PREFIX) && !key.startsWith("floating_pos");
         };
+    }
+
+    public static boolean readBoolean(final String key, final boolean defaultValue) {
+        return sInstance.mPrefs.getBoolean(key, defaultValue);
     }
 
     public static Settings getInstance() {

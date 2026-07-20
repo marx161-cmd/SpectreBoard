@@ -1,46 +1,34 @@
 [
   [
-    { "label": "(", "type": "function", "popup": { "relevant": [ { "label": "[" }, { "label": "{" } ] } },
-    { "label": ")", "type": "function", "popup": { "relevant": [ { "label": "]" }, { "label": "}" } ] } },
-    { "label": ":", "type": "function" },
-    { "label": "1", "type": "numeric", "width": 0.3 },
-    { "label": "2", "type": "numeric", "width": 0.3 },
-    { "label": "3", "type": "numeric", "width": 0.3 },
-    { "label": "+", "type": "function", "popup": { "main": { "label": "±" } } },
-    { "label": "-", "type": "function", "popup": { "main": { "label": "~" } } },
-    { "label": "space", "type": "function" }
+    { "label": "esc", "type": "function", "code": -10017 },
+    { "label": "←", "type": "function", "code": -21 },
+    { "label": "↑", "type": "function", "code": -23 },
+    { "label": "↓", "type": "function", "code": -24 },
+    { "label": "→", "type": "function", "code": -22 },
+    { "label": "tab", "type": "function", "code": -10014 }
   ],
   [
-    { "label": "!", "type": "function" },
-    { "label": "?", "type": "function" },
-    { "label": ";", "type": "function" },
-    { "label": "4", "type": "numeric", "width": 0.3 },
-    { "label": "5", "type": "numeric", "width": 0.3 },
-    { "label": "6", "type": "numeric", "width": 0.3 },
-    { "label": "*", "type": "function", "popup": { "main":  { "label": "×" } } },
-    { "label": "/", "type": "function", "popup": { "main":  { "label": "÷" } } },
-    { "label": "delete" }
-  ],
-  [
+    { "label": "ctrl", "type": "modifier", "code": -1 },
+    { "label": "alt", "type": "modifier", "code": -3 },
+    { "label": "meta", "type": "modifier", "code": -10012 },
+    { "label": "/", "type": "function" },
     { "label": "|", "type": "function" },
-    { "label": "$$$", "type": "function" },
-    { "label": "&", "type": "function" },
-    { "label": "7", "type": "numeric", "width": 0.3 },
-    { "label": "8", "type": "numeric", "width": 0.3 },
-    { "label": "9", "type": "numeric", "width": 0.3 },
-    { "label": "#", "type": "function" },
-    { "label": "%", "type": "function", "popup": { "main":  { "label": "‰" } } },
-    { "label": "action" }
+    { "label": "-", "type": "function" }
+  ],
+  [
+    { "label": "home", "type": "function", "code": -27 },
+    { "label": "end", "type": "function", "code": -28 },
+    { "label": "pgup", "type": "function", "code": -10010 },
+    { "label": "pgdn", "type": "function", "code": -10011 },
+    { "label": "ins", "type": "function", "code": -10018 },
+    { "label": "delete", "type": "function" }
   ],
   [
     { "label": "alpha" },
-    { "label": "<", "type": "function", "popup": { "main":  { "label": "≤" } } },
-    { "label": ">", "type": "function", "popup": { "main":  { "label": "≥" } } },
-    { "label": "comma", "type": "numeric", "width": 0.3 },
-    { "label": "0", "type": "numeric", "width": 0.3 },
-    { "label": "period", "type": "numeric", "width": 0.3 },
-    { "label": "=", "type": "function", "popup": { "relevant": [ { "label": "≠"}, { "label": "≈"} ] } },
-    { "label": "=", "type": "function", "popup": { "relevant": [ { "label": "≠"}, { "label": "≈"} ] } },
-    { "label": "symbol" }
+    { "label": "F1", "type": "function", "code": -10028, "width": 0.11 },
+    { "label": "F2", "type": "function", "code": -10029, "width": 0.11 },
+    { "label": "F3", "type": "function", "code": -10030, "width": 0.11 },
+    { "label": "F4", "type": "function", "code": -10031, "width": 0.11 },
+    { "label": "symbol", "width": 0.15 }
   ]
 ]

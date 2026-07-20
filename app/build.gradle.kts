@@ -160,6 +160,9 @@ dependencies {
     // ONNX Runtime for GRU-CIFG scorer and Whisper decoder
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
+    // AndroidX Preference (used by CleverKeys neural engine)
+    implementation("androidx.preference:preference-ktx:1.2.1")
+
     // test
     testImplementation(kotlin("test"))
     testImplementation("junit:junit:4.13.2")

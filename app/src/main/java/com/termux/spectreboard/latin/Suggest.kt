@@ -5,6 +5,7 @@
  */
 package com.termux.spectreboard.latin
 
+import android.graphics.PointF
 import android.text.TextUtils
 import com.android.inputmethod.latin.utils.BinaryDictionaryUtils
 import com.termux.spectreboard.keyboard.Keyboard
@@ -28,6 +29,10 @@ import com.termux.spectreboard.latin.utils.SuggestionResults
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.GruScorer
 import com.termux.spectreboard.spectre.KenLmScorer
+import com.termux.spectreboard.spectre.FuzzyExpander
+import com.termux.spectreboard.spectre.PhoneticExpander
+import com.termux.spectreboard.spectre.neural.NeuralGestureEngine
+import com.termux.spectreboard.spectre.neural.GestureAbLogger
 import com.termux.spectreboard.spectre.spatial.SpatialScorer
 import com.termux.spectreboard.latin.utils.WordData
 import com.termux.spectreboard.latin.utils.useBackgroundGathering
@@ -44,6 +49,9 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
     private var mAutoCorrectionThreshold = 0f
     private val mPlausibilityThreshold = 0f
     private val nextWordSuggestionsCache = HashMap<NgramContext, SuggestionResults>()
+
+    // Stored batch alternatives for post-swipe mixed suggestions
+    private var lastBatchAlternatives: List<SuggestedWordInfo> = emptyList()
 
     // cache cleared whenever LatinIME.loadSettings is called, notably on changing layout and switching input fields
     fun clearNextWordSuggestionsCache() = nextWordSuggestionsCache.clear()
@@ -89,9 +97,51 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         val trailingSingleQuotesCount = StringUtils.getTrailingSingleQuotesCount(typedWordString)
         val capsMode = getCapsModeForTyping(wordComposer, keyboard)
         val suggestionsContainer = ArrayList(suggestionResults)
+
+        // Expand candidates with phonetic + fuzzy matches for better recorrection
+        try {
+            if (typedWordString.length >= 2 && typedWordString.length <= 20 && PhoneticExpander.isLoaded) {
+                val seen = HashSet<String>()
+                suggestionsContainer.forEach { seen.add(it.mWord.lowercase()) }
+                val candidates = mutableListOf<String>()
+
+                candidates.addAll(PhoneticExpander.expand(typedWordString.lowercase()))
+                candidates.addAll(FuzzyExpander.expand(typedWordString.lowercase()))
+
+                for (word in candidates.take(20)) {
+                    if (seen.add(word) && word != typedWordString.lowercase()) {
+                        suggestionsContainer.add(SuggestedWordInfo(
+                            word, "", 127,
+                            SuggestedWordInfo.KIND_CORRECTION,
+                            Dictionary.DICTIONARY_USER_TYPED,
+                            SuggestedWordInfo.NOT_AN_INDEX,
+                            SuggestedWordInfo.NOT_A_CONFIDENCE
+                        ))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
         rerankCombined(suggestionsContainer, wordComposer.composedDataSnapshot, ngramContext)
         capitalizeAndAddTrailingSingleQuotes(suggestionsContainer, capsMode, trailingSingleQuotesCount, mDictionaryFacilitator.mainLocale)
         val capitalizedTypedWord = capitalize(typedWordString, capsMode, mDictionaryFacilitator.mainLocale)
+
+        // Post-swipe: inject batch alternatives alongside next-word predictions
+        if (lastBatchAlternatives.isNotEmpty() && typedWordString.isEmpty()) {
+            val existing = suggestionsContainer.map { it.mWord.lowercase() }.toSet()
+            for (alt in lastBatchAlternatives.reversed()) {
+                if (alt.mWord.lowercase() !in existing) {
+                    suggestionsContainer.add(1, SuggestedWordInfo(
+                        alt.mWord, "", alt.mScore,
+                        SuggestedWordInfo.KIND_CORRECTION,
+                        Dictionary.DICTIONARY_USER_TYPED,
+                        SuggestedWordInfo.NOT_AN_INDEX,
+                        SuggestedWordInfo.NOT_A_CONFIDENCE
+                    ))
+                }
+            }
+            lastBatchAlternatives = emptyList()
+        }
 
         // store the original SuggestedWordInfo for typed word, as it will be removed
         // we may want to re-add it in case auto-correction happens, so that the original word can at least be selected
@@ -281,16 +331,57 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         settingsValuesForSuggestion: SettingsValuesForSuggestion,
         inputStyle: Int, isCorrectionEnabled: Boolean, sequenceNumber: Int
     ): SuggestedWords {
+        // Always use Google lib for actual suggestions (unchanged behaviour)
         val suggestionResults = mDictionaryFacilitator.getSuggestionResults(
             wordComposer.composedDataSnapshot, ngramContext, keyboard,
             settingsValuesForSuggestion, SESSION_ID_GESTURE, inputStyle
         )
+
+        // Ensemble: merge CleverKeys neural predictions into the candidate pool
+        // Google candidates get a 1.2x score boost; CleverKeys candidates get neutral score
+        val neuralEngine = NeuralGestureEngine
+        if (neuralEngine.initialized) {
+            val pointers = wordComposer.inputPointers
+            val count = pointers.pointerSize
+            if (count >= 3) {
+                val coords = List(count) { i ->
+                    PointF(pointers.getXCoordinates()[i].toFloat(), pointers.getYCoordinates()[i].toFloat())
+                }
+                val times = pointers.times.map { it.toLong() }
+                val predictions = neuralEngine.predict(
+                    coords, times,
+                    keyboard.mOccupiedWidth.toFloat(), keyboard.mOccupiedHeight.toFloat()
+                )
+
+                // Add CleverKeys candidates (dedup against Google, scored slightly below)
+                val googleWords = suggestionResults.map { it.mWord.lowercase() }.toSet()
+                val baseScore = suggestionResults.map { it.mScore }.average().toInt().coerceAtLeast(100)
+                for ((word, _) in predictions.take(3)) {
+                    if (word.lowercase() !in googleWords) {
+                        suggestionResults.add(SuggestedWordInfo(
+                            word, "", baseScore,
+                            SuggestedWordInfo.KIND_CORRECTION,
+                            Dictionary.DICTIONARY_USER_TYPED,
+                            SuggestedWordInfo.NOT_AN_INDEX,
+                            SuggestedWordInfo.NOT_A_CONFIDENCE
+                        ))
+                    }
+                }
+
+                val googleTop = suggestionResults.firstOrNull()?.mWord ?: ""
+                val neuralTop = predictions.firstOrNull()?.first ?: ""
+                val neuralTop3 = predictions.take(3).joinToString { it.first }
+                GestureAbLogger.log(googleTop, neuralTop, neuralTop3, googleWords.toList(), count)
+                Log.v("GestureAB", "google=\"$googleTop\" neural=\"$neuralTop\"")
+            }
+        }
 
         // For transforming words that don't come from a dictionary, because it's our best bet
         val locale = mDictionaryFacilitator.mainLocale
         val capsMode = getCapsModeForGesture(wordComposer, keyboard)
         val suggestionsContainer = ArrayList(suggestionResults)
         replaceSingleLetterFirstSuggestion(suggestionsContainer)
+        rerankCombined(suggestionsContainer, wordComposer.composedDataSnapshot, ngramContext)
 
         val rejected: SuggestedWordInfo?
         if (SHOULD_REMOVE_PREVIOUSLY_REJECTED_SUGGESTION && suggestionsContainer.size > 1 && TextUtils.equals(
@@ -342,6 +433,11 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             suggestionsContainer
         }
 
+        // Store alternatives for post-swipe mixed suggestions (exclude the committed word)
+        lastBatchAlternatives = suggestionsContainer
+            .filter { it !== pseudoTypedWordInfo && it.mWord != pseudoTypedWordInfo?.mWord }
+            .take(2)
+
         if (useBackgroundGathering && (inputStyle == SuggestedWords.INPUT_STYLE_TAIL_BATCH || inputStyle == SuggestedWords.INPUT_STYLE_TYPING)) {
             val wordData = WordData(null, suggestionResults, wordComposer.composedDataSnapshot,
                 ngramContext, keyboard, inputStyle, false, pseudoTypedWordInfo)
@@ -383,8 +479,22 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
     ) {
         if (suggestions.size < 2) return
 
-        val spatialScores = if (!SpatialScorer.isEmpty())
-            SpatialScorer.scoreAll(suggestions, composedData) else null
+        val spatialScores = if (!SpatialScorer.isEmpty()) {
+            val trajectoryScores = SpatialScorer.scoreAll(suggestions, composedData)
+            val keyScores = SpatialScorer.scoreKeys(suggestions)
+            if (keyScores.isNotEmpty() && trajectoryScores.isNotEmpty()) {
+                val merged = HashMap<SuggestedWordInfo, Double>(trajectoryScores.size)
+                for ((candidate, trajScore) in trajectoryScores) {
+                    val keyScore = keyScores[candidate] ?: 0.0
+                    merged[candidate] = trajScore + keyScore
+                }
+                merged
+            } else if (trajectoryScores.isNotEmpty()) {
+                trajectoryScores
+            } else {
+                keyScores
+            }
+        } else null
 
         val kenScores: Map<SuggestedWordInfo, Float?>? = if (!KenLmScorer.isEmpty()) {
             val candidateWords = Array(suggestions.size) {

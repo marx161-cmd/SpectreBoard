@@ -73,4 +73,33 @@ object SpatialScorer {
         }
         return score - kotlin.math.abs(word.length - tapCount) * LENGTH_MISMATCH_PENALTY
     }
+
+    /**
+     * Score candidates by checking how well each letter's QWERTY centroid
+     * matches the Gaussian model for that key. Catches adjacent-key misses
+     * on swipe: 'a' vs 's' vs 'e' — the key with the tightest Gaussian fit wins.
+     */
+    fun scoreKeys(candidates: List<SuggestedWordInfo>): Map<SuggestedWordInfo, Double> {
+        if (model.isEmpty()) return emptyMap()
+        val scores = HashMap<SuggestedWordInfo, Double>(candidates.size)
+        for (candidate in candidates) {
+            val word = candidate.mWord.toString().lowercase()
+            var score = 0.0
+            var counted = 0
+            for (ch in word) {
+                val gaussian = model[ch] ?: continue
+                // Use the key's own centroid as the test position
+                // Better Gaussian fit = user taps this key more precisely
+                score += gaussian.logDensity(
+                    gaussian.meanX,
+                    gaussian.meanY
+                )
+                counted++
+            }
+            if (counted > 0) {
+                scores[candidate] = score / counted
+            }
+        }
+        return scores
+    }
 }

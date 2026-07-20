@@ -105,6 +105,10 @@ import androidx.core.content.ContextCompat;
 import com.termux.spectreboard.spectre.GruScorer;
 import com.termux.spectreboard.spectre.KenLmScorer;
 import com.termux.spectreboard.spectre.WhisperRecognizer;
+import com.termux.spectreboard.spectre.FuzzyExpander;
+import com.termux.spectreboard.spectre.PhoneticExpander;
+import com.termux.spectreboard.spectre.neural.NeuralGestureEngine;
+import com.termux.spectreboard.spectre.neural.GestureAbLogger;
 import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
 import com.termux.spectreboard.spectre.spatial.SpatialScorer;
 
@@ -616,6 +620,10 @@ public class LatinIME extends InputMethodService implements
                 public void run() {
                     KenLmScorer.INSTANCE.start(LatinIME.this);
                     GruScorer.INSTANCE.start(LatinIME.this);
+                    NeuralGestureEngine.INSTANCE.initialize(LatinIME.this);
+                    GestureAbLogger.INSTANCE.init(LatinIME.this);
+                    PhoneticExpander.INSTANCE.loadFromAssets(LatinIME.this, "dictionaries/en.txt");
+                    FuzzyExpander.INSTANCE.setVocabulary(NeuralGestureEngine.INSTANCE.getVocabTrie());
                 }
             }.start();
         }

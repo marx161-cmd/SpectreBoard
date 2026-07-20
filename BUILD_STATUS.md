@@ -1,11 +1,29 @@
 # SpectreBoard — Build Status
 
-**Built:** 2026-06-28
-**APK:** `app/build/outputs/apk/release/SpectreBoard_4.0-alpha2-release.apk` (~52MB)
+**Built:** 2026-07-20
+**APK:** `app/build/outputs/apk/release/SpectreBoard_4.0-alpha2-release.apk` (~62MB)
 **Installed on:** Pixel 10 Pro (`blazer`)
 **Signed with:** Termux suite key (`com.termux.*` ecosystem)
 
 ## What's done
+
+### v4.0-alpha2 additions
+
+- **Terminal keys page** — numpad replaced with Esc/arrows/Tab/Ctrl/Alt/Meta/Home/End/PgUp/PgDn/Ins/Del/F1-F4
+- **Number row macro popups** — long-press 0-9 triggers MacroManager scripts
+- **Phonetic recorrection** — Double Metaphone expands candidate pool when tapping to recorrect a word
+- **Edit-distance recorrection** — Levenshtein ≤2 trie walk for fuzzy candidate expansion
+- **Spatial swipe scoring** — Gaussian trajectory + per-key precision scoring applied to swipe candidates
+- **Ensemble ranking** — Google (scored higher) + CleverKeys (top 3) merged through rerankCombined
+- **Neural gesture engine** (CleverKeys ONNX) — AB testing logs + active candidate injection
+- **Gesture AB logger** — collects Google-vs-CleverKeys comparison data per swipe
+
+## Feature backlog (priority order)
+
+1. Post-swipe mixed suggestions — alternative readings + next-word prediction in suggestion strip
+2. LiteRT conversion — ONNX→TFLite for potential NPU acceleration
+3. Periodic model retraining — retrain CleverKeys ONNX from collected swipe data
+4. Neural engine as primary — cut over from Google lib when accuracy warrants
 
 ### Project identity
 - Forked from HeliBoard v4.0-alpha2 (`ec00934d`)
