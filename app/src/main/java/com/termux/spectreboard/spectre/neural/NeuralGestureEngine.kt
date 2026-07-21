@@ -24,13 +24,18 @@ object NeuralGestureEngine {
     @Volatile var initialized: Boolean = false
         private set
 
-    init {
-        try { System.loadLibrary("onnxruntime") } catch (_: Exception) {}
+    private val nativeAvailable = try {
+        System.loadLibrary("onnxruntime")
+        true
+    } catch (t: Throwable) {
+        Log.w(TAG, "ONNX Runtime native library unavailable", t)
+        false
     }
 
     private val lock = Any()
 
     fun initialize(context: Context): Boolean {
+        if (!nativeAvailable) return false
         synchronized(lock) {
             if (initialized) return true
             this.context = context.applicationContext
@@ -76,7 +81,7 @@ object NeuralGestureEngine {
         keyboardWidth: Float,
         keyboardHeight: Float
     ): List<Pair<String, Float>> {
-        if (!initialized || coords.size < 3) return emptyList()
+        if (!nativeAvailable || !initialized || coords.size < 3) return emptyList()
 
         val sesh = encoderSession ?: return emptyList()
         val env = ortEnv ?: return emptyList()
@@ -149,7 +154,7 @@ object NeuralGestureEngine {
 
     fun cleanup() {
         synchronized(lock) {
-            decoderSession?.close(); encoderSession?.close(); ortEnv?.close()
+            decoderSession?.close(); encoderSession?.close()
             decoderSession = null; encoderSession = null; ortEnv = null
             beamDecoder = null; initialized = false
         }

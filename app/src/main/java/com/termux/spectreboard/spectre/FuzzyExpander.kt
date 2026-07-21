@@ -1,7 +1,7 @@
 package com.termux.spectreboard.spectre
 
 object FuzzyExpander {
-    private var vocabTrie: com.termux.spectreboard.spectre.neural.VocabularyTrie? = null
+    @Volatile private var vocabTrie: com.termux.spectreboard.spectre.neural.VocabularyTrie? = null
     private const val MAX_DISTANCE = 2
     private const val MAX_RESULTS = 25
 
@@ -29,8 +29,8 @@ object FuzzyExpander {
         val maxDist = MAX_DISTANCE
         val cols = query.length + 1
 
-        for (c in 'a'..'z') {
-            if (!trie.hasPrefix(prefix.toString() + c)) continue
+        val nextChars = trie.getAllowedNextChars(prefix.toString())
+        for (c in nextChars) {
 
             val currRow = IntArray(cols)
             currRow[0] = prevRow[0] + 1 // insert

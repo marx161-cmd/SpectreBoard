@@ -129,10 +129,8 @@ class BeamSearchDecoder(
                 "target_tokens" to tgtTensor,
                 "actual_src_length" to srcLenTensor
             ))
-            val output = result.first().value
-            val array = (output as Array<*>).map { it as FloatArray }.toTypedArray()
-            tgtTensor.close(); srcLenTensor.close()
-            result.drop(1).forEach { it.value.close() }
+            val array = parseSingleOutput(result.first().value, seqLen)
+            tgtTensor.close(); srcLenTensor.close(); result.close()
             array
         } catch (e: Exception) {
             tgtTensor.close(); srcLenTensor.close()
@@ -154,26 +152,56 @@ class BeamSearchDecoder(
                 "target_tokens" to tgtTensor,
                 "actual_src_length" to srcLenTensor
             ))
-            val output = result.first().value
-            val flat = FloatArray(numBeams * seqLen * vocabSize)
-            if (output is FloatArray) {
-                output.copyInto(flat)
-            } else {
-                val arr = output as Array<*>
-                var idx = 0
-                for (b in 0 until numBeams) {
-                    val beamLogits = arr[b] as FloatArray
-                    beamLogits.copyInto(flat, idx)
-                    idx += beamLogits.size
-                }
-            }
-            tgtTensor.close(); srcLenTensor.close()
-            result.drop(1).forEach { it.value.close() }
+            val flat = parseBatchedOutput(result.first().value, numBeams, seqLen, vocabSize)
+            tgtTensor.close(); srcLenTensor.close(); result.close()
             flat
         } catch (e: Exception) {
             tgtTensor.close(); srcLenTensor.close()
             throw e
         }
+    }
+
+    private fun parseSingleOutput(output: Any, seqLen: Int): Array<FloatArray> {
+        return when (output) {
+            is Array<*> -> {
+                val first = output.firstOrNull()
+                when (first) {
+                    is FloatArray -> Array(output.size) { i -> (output[i] as FloatArray).copyOf() }
+                    is Array<*> -> Array(seqLen) { i -> (first[i] as FloatArray).copyOf() }
+                    else -> error("Unsupported decoder output row: ${first?.javaClass}")
+                }
+            }
+            else -> error("Unsupported decoder output: ${output.javaClass}")
+        }
+    }
+
+    private fun parseBatchedOutput(output: Any, numBeams: Int, seqLen: Int, vocabSize: Int): FloatArray {
+        val flat = FloatArray(numBeams * seqLen * vocabSize)
+        when (output) {
+            is FloatArray -> output.copyInto(flat, endIndex = min(output.size, flat.size))
+            is Array<*> -> {
+                var idx = 0
+                for (b in 0 until min(numBeams, output.size)) {
+                    val beam = output[b]
+                    when (beam) {
+                        is FloatArray -> {
+                            beam.copyInto(flat, idx, endIndex = min(beam.size, flat.size - idx))
+                            idx += beam.size
+                        }
+                        is Array<*> -> {
+                            for (s in 0 until min(seqLen, beam.size)) {
+                                val row = beam[s] as FloatArray
+                                row.copyInto(flat, idx, endIndex = min(row.size, flat.size - idx))
+                                idx += vocabSize
+                            }
+                        }
+                        else -> error("Unsupported batched decoder beam: ${beam?.javaClass}")
+                    }
+                }
+            }
+            else -> error("Unsupported batched decoder output: ${output.javaClass}")
+        }
+        return flat
     }
 
     private fun expandBeam(beam: BeamState, logProbs: FloatArray, candidates: MutableList<BeamState>) {

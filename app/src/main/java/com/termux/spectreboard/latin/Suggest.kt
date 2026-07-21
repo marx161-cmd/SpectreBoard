@@ -128,10 +128,11 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
 
         // Post-swipe: inject batch alternatives alongside next-word predictions
         if (lastBatchAlternatives.isNotEmpty() && typedWordString.isEmpty()) {
-            val existing = suggestionsContainer.map { it.mWord.lowercase() }.toSet()
+            val existing = suggestionsContainer.map { it.mWord.lowercase() }.toMutableSet()
             for (alt in lastBatchAlternatives.reversed()) {
-                if (alt.mWord.lowercase() !in existing) {
-                    suggestionsContainer.add(1, SuggestedWordInfo(
+                val altWord = alt.mWord.lowercase()
+                if (existing.add(altWord)) {
+                    suggestionsContainer.add(min(1, suggestionsContainer.size), SuggestedWordInfo(
                         alt.mWord, "", alt.mScore,
                         SuggestedWordInfo.KIND_CORRECTION,
                         Dictionary.DICTIONARY_USER_TYPED,
