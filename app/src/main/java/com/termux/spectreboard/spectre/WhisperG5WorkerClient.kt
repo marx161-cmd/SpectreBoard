@@ -2,6 +2,7 @@ package com.termux.spectreboard.spectre
 
 import android.content.Context
 import android.util.Log
+import com.termux.spectreboard.npud.NpudClient
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -21,88 +22,43 @@ class WhisperG5WorkerClient(private val context: Context) {
     var isReady = false
         private set
 
+    /**
+     * Kept for callers that probe readiness. npud owns the worker lifecycle,
+     * so this only checks the daemon is reachable rather than spawning a
+     * second whisper worker to compete with it.
+     */
     fun start() {
-        if (isReady && process?.isAlive == true) return
-
-        stop()
-        val nativeLibDir = context.applicationInfo.nativeLibraryDir
-        val binary = File(nativeLibDir, "libwhisper_g5_worker.so")
-        val model = File(MODEL_PATH)
-        if (!binary.canExecute()) {
-            error("worker is not executable: ${binary.absolutePath}")
-        }
-        if (!model.canRead()) {
-            error("G5 encoder model is not readable: ${model.absolutePath}")
-        }
-
-        Log.i(TAG, "starting ${binary.absolutePath}")
-        val pb = ProcessBuilder(
-            binary.absolutePath,
-            "--model_path=${model.absolutePath}",
-            "--dispatch_lib_dir=$nativeLibDir",
-        )
-        pb.environment()["LD_LIBRARY_PATH"] = "$nativeLibDir:/system/lib64:/vendor/lib64"
-        pb.redirectErrorStream(false)
-
-        process = pb.start()
-        val current = process ?: error("worker process was not created")
-
-        Thread {
-            BufferedReader(InputStreamReader(current.errorStream)).forEachLine { line ->
-                Log.v(TAG_ERR, line)
-            }
-        }.also {
-            it.isDaemon = true
-            it.name = "WhisperG5Worker-err"
-            it.start()
-        }
-
-        writer = PrintWriter(current.outputStream.bufferedWriter())
-        stdoutQueue = LinkedBlockingQueue()
-        Thread {
-            BufferedReader(InputStreamReader(current.inputStream)).forEachLine { line ->
-                stdoutQueue.offer(line)
-            }
-        }.also {
-            it.isDaemon = true
-            it.name = "WhisperG5Worker-out"
-            it.start()
-        }
-
-        while (true) {
-            val line = stdoutQueue.poll(START_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-                ?: error("worker did not become ready")
-            Log.d(TAG, "startup: $line")
-            if (line.contains("WHISPER_G5_READY")) {
-                isReady = true
-                return
-            }
-            if (line.contains("WHISPER_G5_ERROR")) {
-                error(line)
-            }
+        isReady = NpudClient.isAvailable()
+        if (!isReady) {
+            Log.w(TAG, "npud not reachable at ${NpudClient.SOCKET_PATH}; whisper will fail")
         }
     }
 
-    @Synchronized
+    /**
+     * Encode one mel window through npud instead of a worker this IME owns.
+     *
+     * npud keeps the whisper worker warm across calls and shares it with the
+     * other com.termux.* apps, so dictation no longer pays a model load on
+     * first use and the NPU isn't holding three near-identical workers. The
+     * request line and the temp-file handoff are unchanged — npud passes the
+     * payload through verbatim, and the worker reads/writes these paths
+     * directly because every com.termux.* app shares Termux's UID.
+     *
+     * Deliberately no fallback to a locally spawned worker: that would hide a
+     * broken npud path rather than surface it.
+     */
     fun run(mel: FloatBuffer): FloatArray {
-        if (!isReady || process?.isAlive != true) {
-            start()
-        }
-
         val dir = File(context.cacheDir, "whisper-g5").also { it.mkdirs() }
         val stamp = System.nanoTime()
         val input = File(dir, "mel_$stamp.bin")
         val output = File(dir, "enc_$stamp.bin")
         try {
             writeMel(input, mel)
-            val w = writer ?: error("worker stdin is closed")
-            w.println("${input.absolutePath} ${output.absolutePath}")
-            w.flush()
-
-            val line = readStatusLine()
-            if (!line.startsWith("WHISPER_G5_OK")) {
-                error(line)
-            }
+            NpudClient.generate(
+                NpudClient.KIND_ASR,
+                NPUD_MODEL,
+                "${input.absolutePath} ${output.absolutePath}",
+            )
             return readOutput(output)
         } finally {
             input.delete()
@@ -110,23 +66,9 @@ class WhisperG5WorkerClient(private val context: Context) {
         }
     }
 
+    /** No-op beyond local state: the worker outlives this IME by design. */
     fun stop() {
         isReady = false
-        runCatching {
-            writer?.println("QUIT")
-            writer?.flush()
-        }
-        runCatching { writer?.close() }
-        process?.let { proc ->
-            runCatching {
-                if (!proc.waitFor(250, TimeUnit.MILLISECONDS)) {
-                    proc.destroyForcibly()
-                }
-            }
-        }
-        process = null
-        writer = null
-        stdoutQueue.clear()
     }
 
     private fun readStatusLine(): String {
@@ -172,6 +114,8 @@ class WhisperG5WorkerClient(private val context: Context) {
     companion object {
         private const val TAG = "WhisperG5Worker"
         private const val TAG_ERR = "WhisperG5Worker-err"
+        /** Model name as npud exposes it: the stem under <model-dir>/asr/. */
+        const val NPUD_MODEL = "whisper_base_encoder_fp32_g5"
         private const val MODEL_PATH = "/data/local/tmp/whisper_base_encoder_fp32_g5.tflite"
         private const val INPUT_FLOATS = 80 * 3000
         private const val OUTPUT_FLOATS = 1500 * 512
