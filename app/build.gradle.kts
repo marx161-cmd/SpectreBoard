@@ -27,8 +27,11 @@ android {
         versionCode = 4002
         versionName = "4.0-alpha2"
         ndk {
+            // arm64 only: this APK only ever runs on the Pixel. The other ABIs pulled in
+            // ~53 MB of ONNX Runtime alone, and the bundled scorer jniLibs are arm64-only
+            // anyway, so those tiers were silently dead on any other architecture.
             abiFilters.clear()
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
+            abiFilters.add("arm64-v8a")
         }
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }

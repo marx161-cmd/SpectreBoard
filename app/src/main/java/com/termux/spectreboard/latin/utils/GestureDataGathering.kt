@@ -39,6 +39,31 @@ object BackgroundGatheringCache {
     private const val DEBUG = false // hardcoded debug flag because data should not be logged even in normal debug mode
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    // Long-lived single-field sessions (terminal, chat) never hit the save-on-finish-input
+    // path, so the cache used to grow without bound — each WordData pins suggestions and
+    // raw pointer data. Once past FLUSH_THRESHOLD, spill everything but the newest
+    // KEEP_RECENT entries to the gesture DB; correction retargeting (onPickSuggestion,
+    // onEditWord) only ever touches recent words, so the RAM tail is all it needs.
+    private const val FLUSH_THRESHOLD = 100
+    private const val KEEP_RECENT = 50
+    private var appContext: Context? = null
+
+    fun onStartInput(context: Context) {
+        appContext = context.applicationContext
+    }
+
+    private fun maybeFlushOldestToDisk() {
+        val context = appContext ?: return
+        if (cachedWords.size <= FLUSH_THRESHOLD) return
+        // In discard-by-default mode the user decides at session end whether data is kept;
+        // an early flush would save what they meant to discard, so keep it in RAM there.
+        if (GestureDataGatheringSettings.isDiscardByDefault(context)) return
+        val flushCount = cachedWords.size - KEEP_RECENT
+        val toFlush = ArrayList(cachedWords.subList(0, flushCount))
+        cachedWords.subList(0, flushCount).clear()
+        scope.launch { toFlush.forEach { it.save(context) } }
+    }
+
     private fun updateIcon(save: Boolean = false) {
         scope.launch(Dispatchers.Main) { // on main thread because it's touching views
             KeyboardSwitcher.getInstance().setBackgroundGatheringIndicator(useBackgroundGathering, cachedWords.isNotEmpty(), save)
@@ -53,6 +78,7 @@ object BackgroundGatheringCache {
         if (DEBUG) Log.i(TAG, "adding ${word.topSuggestion}")
         val wasEmpty = cachedWords.isEmpty()
         cachedWords.add(word)
+        maybeFlushOldestToDisk()
         // Only refresh the icon when the cache transitions from empty → non-empty so we
         // don't post a Main-thread coroutine for every batch-mode word that's added.
         if (wasEmpty) updateIcon()
@@ -168,6 +194,7 @@ object BackgroundGatheringCache {
 var useBackgroundGathering = false
 
 fun setUseBackgroundGathering(context: Context, editorInfo: EditorInfo): Boolean {
+    BackgroundGatheringCache.onStartInput(context)
     useBackgroundGathering = isBackgroundGatheringUsed(context, editorInfo)
     if (!useBackgroundGathering)
         BackgroundGatheringCache.clear()
@@ -201,7 +228,7 @@ class WordData(
     val suggestions: SuggestionResults,
     val composedData: ComposedData,
     val ngramContext: NgramContext, // actually we don't use it
-    val keyboard: Keyboard,
+    keyboard: Keyboard, // deliberately not retained — entries can sit cached for a whole session
     val inputStyle: Int,
     val activeMode: Boolean,
     // first suggestion in background gathering, used to track later changes
@@ -212,8 +239,9 @@ class WordData(
     private val keys = keyboard.sortedKeys
     private val height = keyboard.mOccupiedHeight
     private val width = keyboard.mOccupiedWidth
+    private val editorInfo = keyboard.mId.mEditorInfo
 
-    private val packageName = keyboard.mId.mEditorInfo.packageName
+    private val packageName = editorInfo.packageName
     private val pointerData = PointerData.fromPointers(composedData.mInputPointers)
 
     private val timestamp = System.currentTimeMillis()
@@ -324,7 +352,7 @@ class WordData(
             return false
         if (GestureDataGatheringSettings.isForbiddenForDataGathering(packageName, context))
             return false // package ignored (we should never come here for blocked apps, but better be safe)
-        val inputAttributes = InputAttributes(keyboard.mId.mEditorInfo, false, "")
+        val inputAttributes = InputAttributes(editorInfo, false, "")
         val isEmailField = InputTypeUtils.isEmailVariation(inputAttributes.mInputType and InputType.TYPE_MASK_VARIATION)
         if (inputAttributes.mIsPasswordField || inputAttributes.mNoLearning || isEmailField)
             return false // background gathering should not even be enabled, but better have this backup

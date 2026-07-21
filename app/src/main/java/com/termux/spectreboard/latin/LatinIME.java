@@ -132,6 +132,8 @@ public class LatinIME extends InputMethodService implements
      * replacement or removal.
      */
     private static final String SCHEME_PACKAGE = "package";
+    // One-shot latch for the neural-gesture/phonetic loader; see loadSettings().
+    private static volatile boolean sSpectreExtrasAttempted = false;
 
     final Settings mSettings;
     public final KeyboardActionListener mKeyboardActionListener;
@@ -614,16 +616,41 @@ public class LatinIME extends InputMethodService implements
         // loadSettings() runs on every settings reload / subtype switch; only spawn
         // the loader thread while a scorer is actually missing (start() itself is
         // CAS-guarded, so a redundant spawn during load is still safe, just wasted).
-        if (KenLmScorer.INSTANCE.isEmpty() || GruScorer.INSTANCE.isEmpty()) {
+        // The neural/phonetic extras get exactly one attempt per process: retrying them
+        // on a permanent failure would re-read tens of MB of assets on every subtype
+        // switch, which shows up as recurring typing jank, not recovery.
+        final boolean scorersMissing = KenLmScorer.INSTANCE.isEmpty() || GruScorer.INSTANCE.isEmpty();
+        final boolean extrasPending = !sSpectreExtrasAttempted
+                && (!NeuralGestureEngine.INSTANCE.getInitialized() || !PhoneticExpander.INSTANCE.isLoaded());
+        if (scorersMissing || extrasPending) {
             new Thread("spectre-model-loader") {
                 @Override
                 public void run() {
-                    KenLmScorer.INSTANCE.start(LatinIME.this);
-                    GruScorer.INSTANCE.start(LatinIME.this);
-                    NeuralGestureEngine.INSTANCE.initialize(LatinIME.this);
-                    GestureAbLogger.INSTANCE.init(LatinIME.this);
-                    PhoneticExpander.INSTANCE.loadFromAssets(LatinIME.this, "dictionaries/en.txt");
-                    FuzzyExpander.INSTANCE.setVocabulary(NeuralGestureEngine.INSTANCE.getVocabTrie());
+                    try {
+                        KenLmScorer.INSTANCE.start(LatinIME.this);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "KenLM scorer init failed", t);
+                    }
+                    try {
+                        GruScorer.INSTANCE.start(LatinIME.this);
+                    } catch (Throwable t) {
+                        Log.w(TAG, "GRU scorer init failed", t);
+                    }
+                    if (extrasPending) {
+                        sSpectreExtrasAttempted = true;
+                        try {
+                            NeuralGestureEngine.INSTANCE.initialize(LatinIME.this);
+                        } catch (Throwable t) {
+                            Log.w(TAG, "Neural gesture engine init failed", t);
+                        }
+                        try {
+                            GestureAbLogger.INSTANCE.init(LatinIME.this);
+                            PhoneticExpander.INSTANCE.loadFromAssets(LatinIME.this, "dictionaries/en.txt");
+                            FuzzyExpander.INSTANCE.setVocabulary(NeuralGestureEngine.INSTANCE.getVocabTrie());
+                        } catch (Throwable t) {
+                            Log.w(TAG, "Spectre suggestion helper init failed", t);
+                        }
+                    }
                 }
             }.start();
         }
