@@ -6,6 +6,7 @@
 package com.termux.spectreboard.latin
 
 import android.content.Context
+import android.content.ComponentName
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.view.inputmethod.InputMethodInfo
@@ -55,6 +56,16 @@ class RichInputMethodManager private constructor() {
     private var shortcuts = listOf<Shortcut>()
 
     val isShortcutImeReady get() = shortcuts.isNotEmpty()
+
+    // Same-package recognizers are not exposed as shortcut IMEs on this device.
+    val isOwnVoiceRecognizerSelected get() = ComponentName.unflattenFromString(
+        android.provider.Settings.Secure.getString(
+            context.contentResolver,
+            "voice_recognition_service",
+        )
+    )?.packageName == context.packageName
+
+    val isVoiceInputReady get() = isShortcutImeReady || isOwnVoiceRecognizerSelected
 
     fun getEnabledInputMethodSubtypes(imi: InputMethodInfo, allowsImplicitlySelectedSubtypes: Boolean) =
         inputMethodInfoCache.getEnabledInputMethodSubtypeList(imi, allowsImplicitlySelectedSubtypes)
