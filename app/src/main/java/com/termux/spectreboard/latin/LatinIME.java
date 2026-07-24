@@ -761,6 +761,8 @@ public class LatinIME extends InputMethodService implements
         KenLmScorer.INSTANCE.stop();
         GruScorer.INSTANCE.stop();
         WhisperRecognizer.INSTANCE.stop();
+        NeuralGestureEngine.INSTANCE.cleanup();
+        sSpectreExtrasAttempted = false;
         super.onDestroy();
         mHandler.removeCallbacksAndMessages(null);
         deallocateMemory();
@@ -1485,12 +1487,9 @@ public class LatinIME extends InputMethodService implements
     // completely replace #onCodeInput.
     public void onEvent(@NonNull final Event event) {
         if (KeyCode.VOICE_INPUT == event.getKeyCode()) {
-            if (mRichImm.isOwnVoiceRecognizerSelected()) {
-                mKeyboardActionListener.onCodeInput(KeyCode.WHISPER_MIC,
-                        Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
-            } else {
-                mRichImm.switchToShortcutIme(this);
-            }
+            mKeyboardActionListener.onCodeInput(KeyCode.WHISPER_MIC,
+                    Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
+            return;
         }
         final InputTransaction completeInputTransaction =
                 mInputLogic.onCodeInput(mSettings.getCurrent(), event,
@@ -1933,6 +1932,8 @@ public class LatinIME extends InputMethodService implements
             case TRIM_MEMORY_RUNNING_LOW, TRIM_MEMORY_RUNNING_CRITICAL, TRIM_MEMORY_COMPLETE -> {
                 KeyboardLayoutSet.onSystemLocaleChanged(); // clears caches, nothing else
                 mKeyboardSwitcher.trimMemory();
+                KenLmScorer.INSTANCE.stop();
+                GruScorer.INSTANCE.stop();
             }
             // deallocateMemory always called on hiding, and should not be called when showing
         }

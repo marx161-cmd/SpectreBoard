@@ -62,8 +62,12 @@ object GruScorer {
                 lines.forEachIndexed { idx, w -> put(w.lowercase(), idx) }
             }
             val modelPath = "${context.filesDir.absolutePath}/$ONNX_FILENAME"
-            val options = OrtSession.SessionOptions().apply { addXnnpack(mapOf()) }
+            val options = OrtSession.SessionOptions().apply {
+                addXnnpack(mapOf())
+                setCPUArenaAllocator(true)
+            }
             val newSession = OrtEnvironment.getEnvironment().createSession(modelPath, options)
+            options.close()
             synchronized(lock) {
                 session = newSession
             }

@@ -71,8 +71,11 @@ object NeuralGestureEngine {
         val options = OrtSession.SessionOptions().apply {
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
             setIntraOpNumThreads(NeuralConfig.ONNX_THREADS)
+            setCPUArenaAllocator(true)
         }
-        return ortEnv!!.createSession(bytes, options)
+        val session = ortEnv!!.createSession(bytes, options)
+        options.close()
+        return session
     }
 
     fun predict(

@@ -102,9 +102,14 @@ object WhisperRecognizer {
         }
 
         // --- Decoder ---
+        var sess: OrtSession? = null
         try {
-            val sess = ortEnv.createSession(decFile.absolutePath,
-                OrtSession.SessionOptions().apply { addXnnpack(mapOf()) })
+            val opts = OrtSession.SessionOptions().apply {
+                addXnnpack(mapOf())
+                setCPUArenaAllocator(true)
+            }
+            sess = ortEnv.createSession(decFile.absolutePath, opts)
+            opts.close()
             val v = vocabFile.readLines().toTypedArray()
             var sot = SOT; var eot = EOT; var en = EN
             var transcribe = TRANSCRIBE; var noTimestamps = NO_TIMESTAMPS
@@ -117,6 +122,7 @@ object WhisperRecognizer {
                 noTimestamps = parseJsonInt(json, "notimestamps") ?: noTimestamps
             }
             synchronized(lock) {
+                decSess?.close()
                 g5Encoder = enc
                 decSess = sess
                 vocab = v
@@ -125,6 +131,7 @@ object WhisperRecognizer {
             Log.i(TAG, "init OK encoder=G5 worker vocab=${v.size}")
         } catch (e: Exception) {
             Log.e(TAG, "ORT decoder failed", e)
+            sess?.close()
             enc.stop()
         }
     }
@@ -138,7 +145,12 @@ object WhisperRecognizer {
     }
 
     private fun start(context: Context, onResult: (String) -> Unit, onStateChange: () -> Unit) {
-        if (!isAvailable()) { Log.w(TAG, "start: not available (models not loaded)"); return }
+        if (!isAvailable()) {
+            Log.w(TAG, "start: not available (models or npud not ready)")
+            Toast.makeText(context, "Whisper not ready: npud/model unavailable", Toast.LENGTH_SHORT).show()
+            init(context)
+            return
+        }
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_FLOAT)
         val rec = AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE,
