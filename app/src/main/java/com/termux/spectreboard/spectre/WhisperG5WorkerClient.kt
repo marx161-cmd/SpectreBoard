@@ -19,8 +19,10 @@ class WhisperG5WorkerClient(private val context: Context) {
     private var stdoutQueue = LinkedBlockingQueue<String>()
 
     @Volatile
-    var isReady = false
-        private set
+    private var hasProbed = false
+
+    val isReady: Boolean
+        get() = hasProbed && NpudClient.isAvailable()
 
     /**
      * Kept for callers that probe readiness. npud owns the worker lifecycle,
@@ -28,8 +30,8 @@ class WhisperG5WorkerClient(private val context: Context) {
      * second whisper worker to compete with it.
      */
     fun start() {
-        isReady = NpudClient.isAvailable()
-        if (!isReady) {
+        hasProbed = true
+        if (!NpudClient.isAvailable()) {
             Log.w(TAG, "npud not reachable at ${NpudClient.SOCKET_PATH}; whisper will fail")
         }
     }
@@ -68,7 +70,7 @@ class WhisperG5WorkerClient(private val context: Context) {
 
     /** No-op beyond local state: the worker outlives this IME by design. */
     fun stop() {
-        isReady = false
+        hasProbed = false
     }
 
     private fun readStatusLine(): String {

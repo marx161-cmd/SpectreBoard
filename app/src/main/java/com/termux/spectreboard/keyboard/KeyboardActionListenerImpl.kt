@@ -5,6 +5,9 @@ import android.text.InputType
 import android.util.SparseArray
 import android.view.KeyEvent
 import android.view.inputmethod.InputMethodSubtype
+import android.content.ComponentName
+import android.content.Intent
+import android.widget.Toast
 import androidx.core.util.forEach
 import androidx.core.view.inputmethod.EditorInfoCompat
 import androidx.core.view.inputmethod.InputContentInfoCompat
@@ -148,6 +151,16 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 DirectInputMode.toggle(latinIME)
                 return
             }
+            KeyCode.VOICE_INPUT -> {
+                WhisperRecognizer.toggle(
+                    context = latinIME,
+                    onResult = { text ->
+                        latinIME.currentInputConnection?.commitText(text, 1)
+                    },
+                    onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
+                )
+                return
+            }
             KeyCode.WHISPER_MIC -> {
                 WhisperRecognizer.toggle(
                     context = latinIME,
@@ -156,6 +169,24 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                     },
                     onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
                 )
+                return
+            }
+            KeyCode.AMD_CONTROL -> {
+                try {
+                    val intent = Intent("com.libremobileos.freeform.START_FREEFORM").apply {
+                        component = ComponentName(
+                            "com.libremobileos.freeform",
+                            "com.libremobileos.freeform.receiver.StartFreeformReceiver",
+                        )
+                        putExtra("packageName", "com.termux.cybersyn.stub1")
+                        putExtra("activityName", "com.termux.cybersyn.stub1.TrackpadStubActivity")
+                        putExtra("userId", 0)
+                        putExtra("taskId", -1)
+                    }
+                    latinIME.sendBroadcast(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(latinIME, "AMD-Control unavailable", Toast.LENGTH_SHORT).show()
+                }
                 return
             }
             in MacroManager.MACRO_CODE_MIN..MacroManager.MACRO_CODE_MAX -> {

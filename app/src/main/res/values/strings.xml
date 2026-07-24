@@ -1257,7 +1257,7 @@ New dictionary:
     <string name="background_gathering" tools:keep="@string/background_gathering">Background data gathering</string>
     <string name="exec_local" tools:keep="@string/exec_local">Run local</string>
     <string name="exec_remote" tools:keep="@string/exec_remote">Run remote</string>
-    <string name="whisper_mic" tools:keep="@string/whisper_mic">Whisper mic</string>
+    <string name="whisper_mic" tools:keep="@string/whisper_mic">AMD-Control</string>
     <!-- Label for the internal voice-mode subtype used to route the standard mic key to the built-in Whisper engine, see method.xml -->
     <string name="subtype_voice_whisper" tools:keep="@string/subtype_voice_whisper">Voice input (Whisper)</string>
     <!-- Review screen menu entry to display actively gathered data

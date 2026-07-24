@@ -4,7 +4,6 @@ import com.termux.spectreboard.latin.R
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.ColorStateList
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -12,7 +11,6 @@ import androidx.core.content.edit
 import androidx.core.view.forEach
 import com.termux.spectreboard.keyboard.internal.KeyboardIconsSet
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
-import com.termux.spectreboard.latin.common.ColorType
 import com.termux.spectreboard.latin.common.Constants.Separators
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.latin.settings.Defaults
@@ -35,16 +33,9 @@ fun createToolbarKey(context: Context, key: ToolbarKey): ImageButton {
 }
 
 fun refreshToolbarButtonActivatedStates(buttonsGroup: ViewGroup) {
-    val colors = Settings.getValues().mColors
     buttonsGroup.forEach { view ->
         if (view is ImageButton) {
             setToolbarButtonActivatedState(view)
-            if (view.tag == WHISPER_MIC) {
-                view.imageTintList = ColorStateList(
-                    arrayOf(intArrayOf(android.R.attr.state_activated), intArrayOf(-android.R.attr.state_activated)),
-                    intArrayOf(colors.get(ColorType.ACTION_KEY_BACKGROUND), colors.get(ColorType.TOOL_BAR_KEY))
-                )
-            }
         }
     }
 }
@@ -73,7 +64,6 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
         AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
         BACKGROUND_GATHERING -> useBackgroundGathering
         DIRECT_INPUT -> DirectInputMode.enabled
-        WHISPER_MIC -> com.termux.spectreboard.spectre.WhisperRecognizer.isRecording
         else -> true
     }
 }
@@ -114,7 +104,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     EXEC_LOCAL -> KeyCode.EXEC_LOCAL
     EXEC_REMOTE -> KeyCode.EXEC_REMOTE
     DIRECT_INPUT -> KeyCode.DIRECT_INPUT
-    WHISPER_MIC -> KeyCode.WHISPER_MIC
+    WHISPER_MIC -> KeyCode.AMD_CONTROL
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
