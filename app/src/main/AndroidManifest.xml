@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:sharedUserId="com.termux">
+    android:sharedUserId="android.uid.system">
 
     <uses-permission android:name="android.permission.READ_USER_DICTIONARY" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
