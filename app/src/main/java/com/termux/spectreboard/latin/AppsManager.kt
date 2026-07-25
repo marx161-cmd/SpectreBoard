@@ -9,6 +9,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.graphics.drawable.Drawable
+import androidx.core.content.ContextCompat
 
 class AppsManager(val context: Context) : BroadcastReceiver() {
     private val mPackageManager: PackageManager = context.packageManager
@@ -33,7 +34,8 @@ class AppsManager(val context: Context) : BroadcastReceiver() {
         packageFilter.addAction(Intent.ACTION_PACKAGE_ADDED)
         packageFilter.addAction(Intent.ACTION_PACKAGE_REMOVED)
         packageFilter.addDataScheme("package")
-        context.registerReceiver(this, packageFilter)
+        // NOT_EXPORTED: protected system broadcast, no cross-app sender needed.
+        ContextCompat.registerReceiver(context, this, packageFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     fun close() {
