@@ -123,6 +123,11 @@ object WhisperRecognizer {
             }
             synchronized(lock) {
                 decSess?.close()
+                // A repeat doInit() (e.g. the previous G5 worker went not-ready mid-session)
+                // must stop the old worker before dropping the reference, or its subprocess
+                // and native buffers are orphaned instead of released -- this was the actual
+                // Native Heap leak (measured 545MB in dumpsys meminfo).
+                if (g5Encoder !== enc) g5Encoder?.stop()
                 g5Encoder = enc
                 decSess = sess
                 vocab = v
