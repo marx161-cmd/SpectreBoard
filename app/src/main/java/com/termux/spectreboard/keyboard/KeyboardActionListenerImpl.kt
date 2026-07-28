@@ -17,6 +17,7 @@ import com.termux.spectreboard.event.HapticEvent
 import com.termux.spectreboard.event.HardwareEventDecoder
 import com.termux.spectreboard.event.HardwareKeyboardEventDecoder
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
+import com.termux.spectreboard.spectre.CybersynControl
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.exec.ExecutionMode
@@ -187,6 +188,38 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 } catch (e: Exception) {
                     Toast.makeText(latinIME, "AMD-Control unavailable", Toast.LENGTH_SHORT).show()
                 }
+                return
+            }
+            KeyCode.CYBERSYN_CLICK -> {
+                // A real single click - momentary, no on/off state to show.
+                CybersynControl.pulseClick()
+                return
+            }
+            KeyCode.CYBERSYN_CLUTCH -> {
+                // "Clutch" = click-and-hold/drag, not the relay's android/clutch topic.
+                val nowOn = CybersynControl.toggleHold(latinIME)
+                keyboardSwitcher.mainKeyboardView?.updateLockState(KeyCode.CYBERSYN_CLUTCH, nowOn)
+                return
+            }
+            KeyCode.CYBERSYN_GYRO -> {
+                // "Gyro" = the tilt-cursor gate, which happens to live on the relay's
+                // android/clutch topic. The trackpad-popup button (AMD_CONTROL) is separate.
+                val nowOn = CybersynControl.toggleGyro(latinIME)
+                keyboardSwitcher.mainKeyboardView?.updateLockState(KeyCode.CYBERSYN_GYRO, nowOn)
+                return
+            }
+            KeyCode.CYBERSYN_RESET -> {
+                // Local: force CTRL/ALT/META lock keys off, in case one is stuck engaged.
+                for (lockCode in intArrayOf(KeyCode.CTRL_LOCK, KeyCode.ALT_LOCK, KeyCode.META_LOCK)) {
+                    metaPressStates[lockCode] = MetaPressState.UNSET
+                    lockCode.toMetaState()?.let { metaState = metaState and it.inv() }
+                    keyboardSwitcher.mainKeyboardView?.updateLockState(lockCode, false)
+                }
+                // Remote: force hold+gyro-gate off on the relay regardless of our local state,
+                // in case it drifted (MQTT here is fire-and-forget, no ack).
+                CybersynControl.forceReleaseAll(latinIME)
+                keyboardSwitcher.mainKeyboardView?.updateLockState(KeyCode.CYBERSYN_CLUTCH, false)
+                keyboardSwitcher.mainKeyboardView?.updateLockState(KeyCode.CYBERSYN_GYRO, false)
                 return
             }
             in MacroManager.MACRO_CODE_MIN..MacroManager.MACRO_CODE_MAX -> {

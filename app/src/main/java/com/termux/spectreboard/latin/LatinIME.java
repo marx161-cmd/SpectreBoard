@@ -561,6 +561,7 @@ public class LatinIME extends InputMethodService implements
 
         loadSettings();
         com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.init(this);
+        com.termux.spectreboard.spectre.CybersynControl.INSTANCE.init(this);
         mClipboardHistoryManager.onCreate();
         mHandler.onCreate();
         if (FoldableUtils.INSTANCE.isFoldable())
@@ -1087,6 +1088,7 @@ public class LatinIME extends InputMethodService implements
                 FloatingKeyboardUtils.setFloating(mInputView);
             setNavigationBarColor();
             workaroundForHuaweiStatusBarIssue();
+            com.termux.spectreboard.spectre.CybersynControl.INSTANCE.publishImeShown(true);
         }
     }
 
@@ -1094,6 +1096,7 @@ public class LatinIME extends InputMethodService implements
     public void onWindowHidden() {
         super.onWindowHidden();
         Log.i(TAG, "onWindowHidden");
+        com.termux.spectreboard.spectre.CybersynControl.INSTANCE.publishImeShown(false);
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {
             mainKeyboardView.closing();

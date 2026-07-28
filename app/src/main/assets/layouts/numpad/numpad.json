@@ -1,16 +1,16 @@
 [
   [
     { "label": "esc", "type": "function", "code": -10017 },
-    { "label": "←", "type": "function", "code": -21 },
-    { "label": "↑", "type": "function", "code": -23 },
-    { "label": "↓", "type": "function", "code": -24 },
-    { "label": "→", "type": "function", "code": -22 },
+    { "label": "click", "type": "function", "code": -10059 },
+    { "label": "clutch", "type": "function", "code": -10060 },
+    { "label": "gyro", "type": "function", "code": -10062 },
+    { "label": "reset", "type": "function", "code": -10061 },
     { "label": "tab", "type": "function", "code": -10014 }
   ],
   [
-    { "label": "ctrl", "type": "modifier", "code": -1 },
-    { "label": "alt", "type": "modifier", "code": -3 },
-    { "label": "meta", "type": "modifier", "code": -10012 },
+    { "label": "ctrl", "type": "modifier", "code": -2 },
+    { "label": "alt", "type": "modifier", "code": -4 },
+    { "label": "meta", "type": "modifier", "code": -10013 },
     { "label": "/", "type": "function" },
     { "label": "|", "type": "function" },
     { "label": "-", "type": "function" }
