@@ -660,7 +660,11 @@ public class LatinIME extends InputMethodService implements
                 }
             }.start();
         }
-        WhisperRecognizer.INSTANCE.init(this);
+        // Whisper dictation now loads lazily on first use (WhisperRecognizer.start() calls
+        // init() on demand). The eager init here pinned ~700MB of ORT/XNNPACK native heap on
+        // EVERY keyboard start even when dictation was never used (deactivated in npud) — the
+        // single largest memory consumer on the device. Removed 2026-08-10.
+        // WhisperRecognizer.INSTANCE.init(this);
     }
 
     private void refreshPersonalizationDictionarySession(
