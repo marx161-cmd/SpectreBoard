@@ -14,6 +14,7 @@ import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.latin.common.Constants.Separators
 import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
+import com.termux.spectreboard.spectre.StreamDictation
 import com.termux.spectreboard.latin.settings.Defaults
 import com.termux.spectreboard.latin.settings.Settings
 import com.termux.spectreboard.latin.utils.ToolbarKey.*
@@ -67,6 +68,7 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
         BACKGROUND_GATHERING -> useBackgroundGathering
         DIRECT_INPUT -> DirectInputMode.enabled
         AMD_MODE -> AmdMode.enabled
+        VOICE -> StreamDictation.isRecording
         else -> true
     }
 }

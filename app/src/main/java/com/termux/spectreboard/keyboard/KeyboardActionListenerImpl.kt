@@ -22,6 +22,7 @@ import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.I3Numpad
 import com.termux.spectreboard.spectre.WhisperRecognizer
+import com.termux.spectreboard.spectre.StreamDictation
 import com.termux.spectreboard.spectre.exec.ExecutionMode
 import com.termux.spectreboard.spectre.exec.MacroManager
 import com.termux.spectreboard.spectre.exec.SpectreBoardExecutor
@@ -166,23 +167,11 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 return
             }
             KeyCode.VOICE_INPUT -> {
-                WhisperRecognizer.toggle(
-                    context = latinIME,
-                    onResult = { text ->
-                        latinIME.currentInputConnection?.commitText(text, 1)
-                    },
-                    onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
-                )
+                toggleDictation()
                 return
             }
             KeyCode.WHISPER_MIC -> {
-                WhisperRecognizer.toggle(
-                    context = latinIME,
-                    onResult = { text ->
-                        latinIME.currentInputConnection?.commitText(text, 1)
-                    },
-                    onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
-                )
+                toggleDictation()
                 return
             }
             KeyCode.AMD_CONTROL -> {
@@ -605,6 +594,40 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 }
             }
         }
+    }
+
+    /**
+     * Toggle streaming dictation. Partials arrive as the full sentence-so-far and are
+     * rendered as COMMITTED text (delete the previously-rendered partial, write the new
+     * one) rather than via setComposingText — LatinIME's own composing/selection machinery
+     * resets a raw composing region, which is why partials never showed and only finals
+     * stuck. `rendered[0]` tracks how many chars of live partial are currently on screen;
+     * it's captured per session (the closures live for the session's lifetime).
+     */
+    private fun toggleDictation() {
+        val rendered = intArrayOf(0)
+        StreamDictation.toggle(
+            context = latinIME,
+            onPartial = { text ->
+                latinIME.currentInputConnection?.let { ic ->
+                    ic.beginBatchEdit()
+                    if (rendered[0] > 0) ic.deleteSurroundingText(rendered[0], 0)
+                    ic.commitText(text, 1)
+                    rendered[0] = text.length
+                    ic.endBatchEdit()
+                }
+            },
+            onFinal = { text ->
+                latinIME.currentInputConnection?.let { ic ->
+                    ic.beginBatchEdit()
+                    if (rendered[0] > 0) ic.deleteSurroundingText(rendered[0], 0)
+                    ic.commitText("$text ", 1)
+                    rendered[0] = 0
+                    ic.endBatchEdit()
+                }
+            },
+            onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
+        )
     }
 
     companion object {

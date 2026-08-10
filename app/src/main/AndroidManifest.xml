@@ -21,6 +21,7 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
 
     <application android:label="@string/english_ime_name"
             android:name="com.termux.spectreboard.latin.App"
+            android:usesCleartextTraffic="true"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsRtl="true"
