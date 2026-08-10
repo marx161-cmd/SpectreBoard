@@ -943,6 +943,15 @@ public final class InputLogic {
         mSpaceState = SpaceState.NONE;
         final SettingsValues sv = inputTransaction.getSettingsValues();
 
+        // AMD mode: forward the character to comrade instead of typing into the local app.
+        // Returns before any local composing/commit, so nothing lands on-device.
+        if (com.termux.spectreboard.spectre.AmdMode.INSTANCE.getEnabled()) {
+            com.termux.spectreboard.spectre.AmdMode.INSTANCE.forwardText(
+                    StringUtils.newSingleCodePointString(codePoint));
+            inputTransaction.setDidAffectContents();
+            return;
+        }
+
         // Direct input mode: commit each character immediately, no composing, no suggestions.
         if (com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.getEnabled()) {
             if (mWordComposer.isComposingWord()) {

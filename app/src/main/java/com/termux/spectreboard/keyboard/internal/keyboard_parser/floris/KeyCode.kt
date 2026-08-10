@@ -193,6 +193,7 @@ object KeyCode {
     const val CYBERSYN_CLUTCH =              -10060
     const val CYBERSYN_RESET =               -10061
     const val CYBERSYN_GYRO =                -10062
+    const val AMD_MODE =                     -10063
 
 
     // Intents

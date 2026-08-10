@@ -73,7 +73,7 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
     fun getSuggestedWords(wordComposer: WordComposer, ngramContext: NgramContext, keyboard: Keyboard,
                           settingsValuesForSuggestion: SettingsValuesForSuggestion, isCorrectionEnabled: Boolean,
                           inputStyle: Int, sequenceNumber: Int): SuggestedWords {
-        if (DirectInputMode.enabled) return SuggestedWords.getEmptyInstance()
+        if (DirectInputMode.enabled || com.termux.spectreboard.spectre.AmdMode.enabled) return SuggestedWords.getEmptyInstance()
         return if (wordComposer.isBatchMode) {
             getSuggestedWordsForBatchInput(wordComposer, ngramContext, keyboard, settingsValuesForSuggestion,
                 inputStyle, isCorrectionEnabled, sequenceNumber)

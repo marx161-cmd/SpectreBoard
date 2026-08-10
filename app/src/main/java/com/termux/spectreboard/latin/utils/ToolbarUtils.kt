@@ -12,6 +12,7 @@ import androidx.core.view.forEach
 import com.termux.spectreboard.keyboard.internal.KeyboardIconsSet
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.latin.common.Constants.Separators
+import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.latin.settings.Defaults
 import com.termux.spectreboard.latin.settings.Settings
@@ -47,6 +48,7 @@ fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: St
         && key != GestureDataGatheringSettings.PREF_BACKGROUND_GATHERING_ENABLED
         && key != GestureDataGatheringSettings.PREF_BACKGROUND_DISABLED_BEFORE_TIME_MILLIS
         && key != DirectInputMode.PREF_KEY
+        && key != AmdMode.PREF_KEY
         && key?.startsWith(Settings.PREF_ONE_HANDED_MODE_PREFIX) == false)
         return
 
@@ -64,6 +66,7 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
         AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
         BACKGROUND_GATHERING -> useBackgroundGathering
         DIRECT_INPUT -> DirectInputMode.enabled
+        AMD_MODE -> AmdMode.enabled
         else -> true
     }
 }
@@ -105,6 +108,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     EXEC_REMOTE -> KeyCode.EXEC_REMOTE
     DIRECT_INPUT -> KeyCode.DIRECT_INPUT
     WHISPER_MIC -> KeyCode.AMD_CONTROL
+    AMD_MODE -> KeyCode.AMD_MODE
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -132,7 +136,7 @@ enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
     PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, EXEC_LOCAL, EXEC_REMOTE,
-    DIRECT_INPUT, WHISPER_MIC
+    DIRECT_INPUT, WHISPER_MIC, AMD_MODE
 }
 
 enum class ToolbarMode {

@@ -18,6 +18,7 @@ import com.termux.spectreboard.event.HardwareEventDecoder
 import com.termux.spectreboard.event.HardwareKeyboardEventDecoder
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.spectre.CybersynControl
+import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.exec.ExecutionMode
@@ -150,6 +151,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             }
             KeyCode.DIRECT_INPUT -> {
                 DirectInputMode.toggle(latinIME)
+                return
+            }
+            KeyCode.AMD_MODE -> {
+                AmdMode.toggle(latinIME)
                 return
             }
             KeyCode.VOICE_INPUT -> {

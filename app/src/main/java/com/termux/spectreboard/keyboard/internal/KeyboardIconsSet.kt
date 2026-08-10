@@ -160,6 +160,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
                     ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_holo
                     ToolbarKey.WHISPER_MIC -> R.drawable.ic_drag_indicator
+                    ToolbarKey.AMD_MODE -> R.drawable.sym_keyboard_send_lxx
                 })
             }
         } }
@@ -227,6 +228,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
                     ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_lxx
                     ToolbarKey.WHISPER_MIC -> R.drawable.ic_drag_indicator
+                    ToolbarKey.AMD_MODE -> R.drawable.sym_keyboard_send_lxx
                 })
             }
         } }
@@ -294,6 +296,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
                     ToolbarKey.DIRECT_INPUT -> R.drawable.sym_keyboard_shift_lock_rounded
                     ToolbarKey.WHISPER_MIC -> R.drawable.ic_drag_indicator
+                    ToolbarKey.AMD_MODE -> R.drawable.sym_keyboard_send_lxx
                 })
             }
         } }

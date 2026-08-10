@@ -561,6 +561,7 @@ public class LatinIME extends InputMethodService implements
 
         loadSettings();
         com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.init(this);
+        com.termux.spectreboard.spectre.AmdMode.INSTANCE.init(this);
         com.termux.spectreboard.spectre.CybersynControl.INSTANCE.init(this);
         mClipboardHistoryManager.onCreate();
         mHandler.onCreate();
