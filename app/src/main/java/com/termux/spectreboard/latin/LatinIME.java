@@ -1088,7 +1088,6 @@ public class LatinIME extends InputMethodService implements
                 FloatingKeyboardUtils.setFloating(mInputView);
             setNavigationBarColor();
             workaroundForHuaweiStatusBarIssue();
-            com.termux.spectreboard.spectre.CybersynControl.INSTANCE.publishImeShown(true);
         }
     }
 
@@ -1096,7 +1095,6 @@ public class LatinIME extends InputMethodService implements
     public void onWindowHidden() {
         super.onWindowHidden();
         Log.i(TAG, "onWindowHidden");
-        com.termux.spectreboard.spectre.CybersynControl.INSTANCE.publishImeShown(false);
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {
             mainKeyboardView.closing();
