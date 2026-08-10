@@ -162,6 +162,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             }
             KeyCode.AMD_MODE -> {
                 AmdMode.toggle(latinIME)
+                latinIME.refreshToolbarButtonActivatedStates()
                 return
             }
             KeyCode.VOICE_INPUT -> {
