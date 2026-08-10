@@ -163,6 +163,9 @@ dependencies {
     // ONNX Runtime for GRU-CIFG scorer and Whisper decoder
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
+    // WebSocket client for streaming dictation to comrade's sherpa-onnx server
+    implementation("org.java-websocket:Java-WebSocket:1.5.7")
+
     // AndroidX Preference (used by CleverKeys neural engine)
     implementation("androidx.preference:preference-ktx:1.2.1")
 
