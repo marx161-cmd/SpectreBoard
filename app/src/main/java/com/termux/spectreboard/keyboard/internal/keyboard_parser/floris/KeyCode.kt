@@ -195,6 +195,26 @@ object KeyCode {
     const val CYBERSYN_GYRO =                -10062
     const val AMD_MODE =                     -10063
 
+    // i3 numpad command keys (publish to cybersyn/hid/i3 → i3-msg on comrade). A contiguous
+    // range so one checkAndConvertCode entry covers them all; the command per code lives in
+    // com.termux.spectreboard.spectre.I3Numpad.
+    const val I3_CMD_MAX =                   -10200
+    const val I3_TERM =                      -10200
+    const val I3_LAUNCH =                    -10201
+    const val I3_CLOSE =                     -10202
+    const val I3_FSCRN =                     -10203
+    const val I3_FLOAT =                     -10204
+    const val I3_RESIZE =                    -10205
+    const val I3_W1 =                        -10206
+    const val I3_W2 =                        -10207
+    const val I3_W3 =                        -10208
+    const val I3_W4 =                        -10209
+    const val I3_QUICK =                     -10210
+    const val I3_FOCUS_PARENT =              -10211
+    const val I3_OVERLAY =                   -10212
+    const val I3_OVERLAY_HIDE =              -10213
+    const val I3_CMD_MIN =                   -10213
+
 
     // Intents
     const val SEND_INTENT_ONE =            -20000
@@ -224,6 +244,8 @@ object KeyCode {
         -> this
 
         in MacroManager.MACRO_CODE_MIN..MacroManager.MACRO_CODE_MAX -> this
+
+        in I3_CMD_MIN..I3_CMD_MAX -> this
 
         // conversion
         IME_UI_MODE_TEXT -> ALPHA

@@ -20,6 +20,7 @@ import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import com.termux.spectreboard.spectre.CybersynControl
 import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
+import com.termux.spectreboard.spectre.I3Numpad
 import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.exec.ExecutionMode
 import com.termux.spectreboard.spectre.exec.MacroManager
@@ -112,6 +113,8 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onCodeInput(primaryCode: Int, x: Int, y: Int, isKeyRepeat: Boolean) {
+        // i3 numpad keys act on comrade regardless of AMD mode (dedicated remote keys).
+        if (I3Numpad.dispatch(primaryCode)) return
         // AMD mode: forward text/keys to comrade. The toggle key passes through so it can turn
         // the mode off; modifier & functional keys return false and are handled locally (so the
         // sticky Ctrl/Alt/Meta state applies to the next forwarded key).

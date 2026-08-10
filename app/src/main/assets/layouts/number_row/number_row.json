@@ -34,11 +34,11 @@
       },
       { "$": "shift_state_selector",
         "manualOrLocked": { "label": "(" },
-        "default": { "label": "9", "popup": { "relevant": [{ "label": "⁹" }] } }
+        "default": { "label": "9", "popup": { "relevant": [{ "label": "ctrl", "code": -2 }, { "label": "alt", "code": -4 }, { "label": "meta", "code": -10013 }, { "label": "⁹" }] } }
       },
       { "$": "shift_state_selector",
         "manualOrLocked": { "label": ")" },
-        "default": { "label": "0", "popup": { "relevant": [{ "label": "⁰" }, { "label": "ⁿ" }, { "label": "∅" }] } }
+        "default": { "label": "0", "popup": { "relevant": [{ "label": "tab", "code": -10014 }, { "label": "esc", "code": -10017 }, { "label": "shift", "code": -11 }, { "label": "⁰" }, { "label": "ⁿ" }, { "label": "∅" }] } }
       }
     ]
   ]

@@ -1,27 +1,27 @@
 [
   [
-    { "label": "esc", "type": "function", "code": -10017 },
+    { "label": "term", "type": "function", "code": -10200 },
+    { "label": "launch", "type": "function", "code": -10201 },
+    { "label": "close", "type": "function", "code": -10202 },
+    { "label": "fscrn", "type": "function", "code": -10203 },
+    { "label": "float", "type": "function", "code": -10204 },
+    { "label": "resize", "type": "function", "code": -10205 }
+  ],
+  [
     { "label": "click", "type": "function", "code": -10059 },
     { "label": "clutch", "type": "function", "code": -10060 },
     { "label": "gyro", "type": "function", "code": -10062 },
     { "label": "reset", "type": "function", "code": -10061 },
-    { "label": "tab", "type": "function", "code": -10014 }
+    { "label": "w1", "type": "function", "code": -10206 },
+    { "label": "w2", "type": "function", "code": -10207 }
   ],
   [
-    { "label": "ctrl", "type": "modifier", "code": -2 },
-    { "label": "alt", "type": "modifier", "code": -4 },
-    { "label": "meta", "type": "modifier", "code": -10013 },
-    { "label": "/", "type": "function" },
-    { "label": "|", "type": "function" },
-    { "label": "-", "type": "function" }
-  ],
-  [
-    { "label": "home", "type": "function", "code": -27 },
-    { "label": "end", "type": "function", "code": -28 },
-    { "label": "pgup", "type": "function", "code": -10010 },
-    { "label": "pgdn", "type": "function", "code": -10011 },
-    { "label": "ins", "type": "function", "code": -10018 },
-    { "label": "delete", "type": "function" }
+    { "label": "w3", "type": "function", "code": -10208 },
+    { "label": "w4", "type": "function", "code": -10209 },
+    { "label": "quick", "type": "function", "code": -10210 },
+    { "label": "focusP", "type": "function", "code": -10211 },
+    { "label": "overlay", "type": "function", "code": -10212 },
+    { "label": "hideOv", "type": "function", "code": -10213 }
   ],
   [
     { "label": "alpha" },
