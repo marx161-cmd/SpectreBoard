@@ -112,6 +112,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onCodeInput(primaryCode: Int, x: Int, y: Int, isKeyRepeat: Boolean) {
+        // AMD mode: forward text/keys to comrade. The toggle key passes through so it can turn
+        // the mode off; modifier & functional keys return false and are handled locally (so the
+        // sticky Ctrl/Alt/Meta state applies to the next forwarded key).
+        if (primaryCode != KeyCode.AMD_MODE && AmdMode.handleCode(primaryCode, metaState)) return
         when (primaryCode) {
             KeyCode.TOGGLE_AUTOCORRECT -> return settings.toggleAutoCorrect()
             KeyCode.TOGGLE_INCOGNITO_MODE -> {

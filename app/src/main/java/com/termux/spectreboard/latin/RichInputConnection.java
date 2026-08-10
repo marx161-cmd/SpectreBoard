@@ -323,6 +323,12 @@ public final class RichInputConnection implements PrivateCommandPerformer {
      * @param newCursorPosition The new cursor position around the text.
      */
     public void commitText(final CharSequence text, final int newCursorPosition) {
+        // AMD mode: forward the committed word (incl. gesture/glide results) to comrade
+        // instead of the local app. Returns before touching the real InputConnection.
+        if (com.termux.spectreboard.spectre.AmdMode.INSTANCE.getEnabled()) {
+            com.termux.spectreboard.spectre.AmdMode.INSTANCE.forwardText(text);
+            return;
+        }
         if (DEBUG_BATCH_NESTING) checkBatchEdit();
         if (DEBUG_PREVIOUS_TEXT) checkConsistencyForDebug();
         if (DebugFlags.DEBUG_ENABLED)
@@ -688,6 +694,12 @@ public final class RichInputConnection implements PrivateCommandPerformer {
     // return whether the text was (probably) set correctly
     // unfortunately this is necessary in some cases
     public boolean setComposingText(final CharSequence text, final int newCursorPosition) {
+        // AMD mode: suppress the local composing preview — the gesture/word engine still
+        // computes the word and commits it via commitText (forwarded above), but nothing is
+        // shown or left behind in the local field.
+        if (com.termux.spectreboard.spectre.AmdMode.INSTANCE.getEnabled()) {
+            return true;
+        }
         if (DEBUG_BATCH_NESTING) checkBatchEdit();
         if (DEBUG_PREVIOUS_TEXT) checkConsistencyForDebug();
         mExpectedSelStart += text.length() - mComposingText.length();
