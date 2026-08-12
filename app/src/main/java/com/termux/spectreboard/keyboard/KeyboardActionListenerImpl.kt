@@ -597,32 +597,44 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     /**
-     * Toggle streaming dictation. Partials arrive as the full sentence-so-far and are
-     * rendered as COMMITTED text (delete the previously-rendered partial, write the new
-     * one) rather than via setComposingText — LatinIME's own composing/selection machinery
-     * resets a raw composing region, which is why partials never showed and only finals
-     * stuck. `rendered[0]` tracks how many chars of live partial are currently on screen;
-     * it's captured per session (the closures live for the session's lifetime).
+     * Toggle streaming dictation. Server sends delta protocol:
+     *   {"type":"append","text":" word"}  — commit text (space-prefixed by server)
+     *   {"type":"final","text":"..."}     — commit trailing space
+     *   {"type":"revise","pop_chars":N,"replace_with":"..."} — surgical rewrite
      */
     private fun toggleDictation() {
-        val rendered = intArrayOf(0)
+        val composing = StringBuilder()
         StreamDictation.toggle(
             context = latinIME,
-            onPartial = { text ->
+            onAppend = { text ->
                 latinIME.currentInputConnection?.let { ic ->
+                    composing.append(text)
                     ic.beginBatchEdit()
-                    if (rendered[0] > 0) ic.deleteSurroundingText(rendered[0], 0)
-                    ic.commitText(text, 1)
-                    rendered[0] = text.length
+                    ic.setComposingText(composing.toString(), 1)
                     ic.endBatchEdit()
                 }
             },
             onFinal = { text ->
                 latinIME.currentInputConnection?.let { ic ->
                     ic.beginBatchEdit()
-                    if (rendered[0] > 0) ic.deleteSurroundingText(rendered[0], 0)
-                    ic.commitText("$text ", 1)
-                    rendered[0] = 0
+                    ic.commitText(composing.toString(), 1)
+                    composing.clear()
+                    if (text.isNotEmpty()) {
+                        ic.commitText("$text ", 1)
+                    } else {
+                        ic.commitText(" ", 1)
+                    }
+                    ic.endBatchEdit()
+                }
+            },
+            onRevise = { popChars, replacement ->
+                latinIME.currentInputConnection?.let { ic ->
+                    val pop = popChars.coerceAtMost(composing.length)
+                    val start = (composing.length - pop).coerceAtLeast(0)
+                    composing.delete(start, composing.length)
+                    composing.append(replacement)
+                    ic.beginBatchEdit()
+                    ic.setComposingText(composing.toString(), 1)
                     ic.endBatchEdit()
                 }
             },

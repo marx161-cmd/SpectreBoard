@@ -127,9 +127,13 @@ object StreamDictation {
         } catch (_: Exception) {}
     }
 
-    fun toggle(context: Context, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onStateChange: () -> Unit) {
+    fun toggle(context: Context,
+                onAppend: (String) -> Unit,
+                onFinal: (String) -> Unit,
+                onRevise: (Int, String) -> Unit,
+                onStateChange: () -> Unit) {
         if (starting) { Log.i(TAG, "toggle ignored (connect in flight)"); return }
-        if (isRecording) stop(onStateChange) else start(context, onPartial, onFinal, onStateChange)
+        if (isRecording) stop(onStateChange) else start(context, onAppend, onFinal, onRevise, onStateChange)
     }
 
     /** Tear down any leftover session so a new one always starts from a clean slate. */
@@ -155,7 +159,11 @@ object StreamDictation {
         }
     }
 
-    fun start(context: Context, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onStateChange: () -> Unit) {
+    fun start(context: Context,
+              onAppend: (String) -> Unit,
+              onFinal: (String) -> Unit,
+              onRevise: (Int, String) -> Unit,
+              onStateChange: () -> Unit) {
         if (isRecording || starting) return
         starting = true
         onState = onStateChange
@@ -179,9 +187,20 @@ object StreamDictation {
                     val m = message ?: return
                     try {
                         val o = JSONObject(m)
-                        when {
-                            o.has("final")   -> { val t = o.getString("final");   main.post { onFinal(t) } }
-                            o.has("partial") -> { val t = o.getString("partial"); main.post { onPartial(t) } }
+                        val type = o.optString("type")
+                        when (type) {
+                            "append" -> { val t = o.getString("text"); main.post { onAppend(t) } }
+                            "final"  -> { val t = o.optString("text", ""); main.post { onFinal(t) } }
+                            "revise" -> {
+                                val pop = o.getInt("pop_chars")
+                                val repl = o.getString("replace_with")
+                                main.post { onRevise(pop, repl) }
+                            }
+                            // Legacy protocol (pre-server-upgrade): fall back to partial/final
+                            else -> when {
+                                o.has("final")   -> { val t = o.getString("final"); main.post { onFinal(t) } }
+                                o.has("partial") -> { val t = o.getString("partial"); main.post { onAppend(t) } }
+                            }
                         }
                     } catch (e: Exception) { Log.w(TAG, "bad msg $m", e) }
                 }

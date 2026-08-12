@@ -26,12 +26,13 @@ class SpectreRecognitionService : RecognitionService() {
         try { callback.readyForSpeech(Bundle()) } catch (_: Exception) {}
         StreamDictation.start(
             context = this,
-            onPartial = { text -> deliver(callback, text, final = false) },
+            onAppend = { text -> deliver(callback, text, final = false) },
             onFinal = { text ->
                 try { callback.endOfSpeech() } catch (_: Exception) {}
                 deliver(callback, text, final = true)
                 StreamDictation.stop {}   // one utterance per turn
             },
+            onRevise = { _, _ -> },
             onStateChange = {},
         )
     }

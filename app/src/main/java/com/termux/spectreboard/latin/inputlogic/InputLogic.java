@@ -381,6 +381,15 @@ public final class InputLogic {
             return false;
         }
 
+        // Streaming dictation drives the composing region via setComposingText()
+        // without populating WordComposer. If we process this as a normal selection
+        // change, the autocorrect engine computes wrong delete lengths against an
+        // empty WordComposer and nukes the dictation text. Bail out — treat the
+        // external composing text as a black box.
+        if (!mWordComposer.isComposingWord() && composingSpanStart >= 0) {
+            return false;
+        }
+
         // if all text is gone, we treat it like onStartInput
         if (GestureDataGatheringKt.useBackgroundGathering && newSelStart == 0 && newSelEnd == 0 && !mConnection.hasTextAfterCursor())
             BackgroundGatheringCache.saveOrClear(mLatinIME);

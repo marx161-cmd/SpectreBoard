@@ -111,6 +111,7 @@ import com.termux.spectreboard.spectre.neural.NeuralGestureEngine;
 import com.termux.spectreboard.spectre.neural.GestureAbLogger;
 import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
 import com.termux.spectreboard.spectre.spatial.SpatialScorer;
+import com.termux.spectreboard.spectre.CybersynFifo;
 
 /**
  * Input method implementation for Qwerty'ish keyboard.
@@ -860,12 +861,14 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onStartInputView(final EditorInfo editorInfo, final boolean restarting) {
+        CybersynFifo.INSTANCE.publish("cybersyn/hid/keyboard_visible", "1");
         mHandler.onStartInputView(editorInfo, restarting);
         mStatsUtilsManager.onStartInputView();
     }
 
     @Override
     public void onFinishInputView(final boolean finishingInput) {
+        CybersynFifo.INSTANCE.publish("cybersyn/hid/keyboard_visible", "0");
         StatsUtils.onFinishInputView();
         mHandler.onFinishInputView(finishingInput);
         mStatsUtilsManager.onFinishInputView();
