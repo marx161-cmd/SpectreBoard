@@ -89,6 +89,12 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
                       settingsValuesForSuggestion: SettingsValuesForSuggestion, inputStyleIfNotPrediction: Int,
                       isCorrectionEnabled: Boolean, sequenceNumber: Int): SuggestedWords {
         val typedWordString = wordComposer.typedWord
+        if (typedWordString.isNotEmpty()) {
+            // The user started typing instead of waiting for the post-swipe prediction refresh
+            // below to consume these -- drop them now so they don't leak into a later, unrelated
+            // word once an empty-typedWordString call finally comes through.
+            lastBatchAlternatives = emptyList()
+        }
         val resultsArePredictions = !wordComposer.isComposingWord
         val suggestionResults = if (typedWordString.isEmpty())
                 getNextWordSuggestions(ngramContext, keyboard, inputStyleIfNotPrediction, settingsValuesForSuggestion)
@@ -345,10 +351,11 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             val pointers = wordComposer.inputPointers
             val count = pointers.pointerSize
             if (count >= 3) {
-                val coords = List(count) { i ->
-                    PointF(pointers.getXCoordinates()[i].toFloat(), pointers.getYCoordinates()[i].toFloat())
-                }
-                val times = pointers.times.map { it.toLong() }
+                val xs = pointers.xCoordinates
+                val ys = pointers.yCoordinates
+                val rawTimes = pointers.times
+                val coords = List(count) { i -> PointF(xs[i].toFloat(), ys[i].toFloat()) }
+                val times = List(count) { i -> rawTimes[i].toLong() }
                 val predictions = neuralEngine.predict(
                     coords, times,
                     keyboard.mOccupiedWidth.toFloat(), keyboard.mOccupiedHeight.toFloat()

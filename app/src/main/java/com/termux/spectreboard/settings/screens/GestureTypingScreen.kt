@@ -64,7 +64,7 @@ fun createGestureTypingSettings(context: Context) = listOf(
     Setting(context, Settings.PREF_GESTURE_INPUT, R.string.gesture_input, R.string.gesture_input_summary) {
         SwitchPreference(it, Defaults.PREF_GESTURE_INPUT)
     },
-    Setting(context, Settings.PREF_GESTURE_NEURAL_ENGINE, R.string.gesture_input, R.string.gesture_input_summary) {
+    Setting(context, Settings.PREF_GESTURE_NEURAL_ENGINE, R.string.gesture_neural_engine, R.string.gesture_neural_engine_summary) {
         SwitchPreference(it, Defaults.PREF_GESTURE_NEURAL_ENGINE)
     },
     Setting(context, Settings.PREF_GESTURE_PREVIEW_TRAIL, R.string.gesture_preview_trail) {

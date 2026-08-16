@@ -116,7 +116,7 @@ object PhoneticExpander {
                             primary += "X"; secondary += "K"
                         }
                         current += 2
-                    } else if (padded[current + 1] == 'Z' && padded[current - 1] != 'W') {
+                    } else if (padded[current + 1] == 'Z' && (current == 0 || padded[current - 1] != 'W')) {
                         primary += "S"; secondary += "X"
                         current += 2
                     } else if (padded[current + 1] == 'C' && current == 0 &&
@@ -232,7 +232,7 @@ object PhoneticExpander {
                     } else {
                         if (current == 0 && padded[current + 1] != ' ') {
                             primary += "J"; secondary += "A"
-                        } else if (isVowel(padded[current - 1]) && !slavoGermanic &&
+                        } else if (current > 0 && isVowel(padded[current - 1]) && !slavoGermanic &&
                             padded[current + 1] in "AEIOU") {
                             primary += "J"; secondary += "H"
                         } else if (current == last) {
@@ -248,11 +248,12 @@ object PhoneticExpander {
                 'K' -> { primary += "K"; secondary += "K"; if (padded[current + 1] == 'K') current++; current++ }
                 'L' -> {
                     if (padded[current + 1] == 'L') {
-                        if ((current == (length - 3) && padded.substring(current - 1, current + 4).endsWith("ILLO")) ||
-                            (padded.substring(current + 1, current + 4) == "ILL" &&
-                                padded.substring(current - 1, current + 4) in listOf("ALLS", "ALLE")) ||
-                            padded.substring(current - 1, current + 4) == "ASLL" ||
-                            padded.substring(current - 1, current + 4) == "OSLL") {
+                        if (current > 0 && (
+                                (current == (length - 3) && padded.substring(current - 1, current + 4).endsWith("ILLO")) ||
+                                (padded.substring(current + 1, current + 4) == "ILL" &&
+                                    padded.substring(current - 1, current + 4) in listOf("ALLS", "ALLE")) ||
+                                padded.substring(current - 1, current + 4) == "ASLL" ||
+                                padded.substring(current - 1, current + 4) == "OSLL")) {
                             primary += "L"; secondary += ""
                         } else {
                             primary += "L"; secondary += "L"
@@ -279,9 +280,8 @@ object PhoneticExpander {
 
                 'Q' -> { primary += "K"; secondary += "K"; if (padded[current + 1] == 'Q') current++; current++ }
                 'R' -> {
-                    if (current == last && !slavoGermanic &&
-                        padded[current - 2] in "IE" && padded[current - 1].let { it !in "AEIOU" } &&
-                        current > 2) {
+                    if (current == last && !slavoGermanic && current > 2 &&
+                        padded[current - 2] in "IE" && padded[current - 1].let { it !in "AEIOU" }) {
                         primary += ""; secondary += ""
                     } else {
                         primary += "R"; secondary += "R"
@@ -293,7 +293,7 @@ object PhoneticExpander {
                 'S' -> {
                     if (padded.substring(current + 1, current + 3) == "IO" ||
                         padded.substring(current + 1, current + 3) == "IA") {
-                        if (padded[current - 1] in "AEIOU") {
+                        if (current > 0 && padded[current - 1] in "AEIOU") {
                             primary += "X"; secondary += "X"
                         } else {
                             primary += "X"; secondary += "S"

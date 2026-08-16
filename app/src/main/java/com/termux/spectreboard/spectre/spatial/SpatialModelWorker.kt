@@ -40,8 +40,8 @@ object SpatialModelWorker {
                     builder.ingestRow(json, sourceIsTap = true)
                 }
                 val model = builder.build()
-                if (model.isEmpty()) return@launch
                 SpatialModelStore.save(appContext, model, currentRowCount)
+                if (model.isEmpty()) return@launch
                 SpatialScorer.updateModel(model)
             } finally {
                 rebuildInProgress.set(false)

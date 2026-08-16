@@ -561,6 +561,7 @@ public class LatinIME extends InputMethodService implements
         super.onCreate();
 
         loadSettings();
+        startArtemisOverlayObserver();
         com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.init(this);
         com.termux.spectreboard.spectre.AmdMode.INSTANCE.init(this);
         com.termux.spectreboard.spectre.CybersynControl.INSTANCE.init(this);
@@ -759,6 +760,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onDestroy() {
+        stopArtemisOverlayObserver();
         mClipboardHistoryManager.onDestroy();
         mDictionaryFacilitator.closeDictionaries();
         mSettings.onDestroy();
@@ -1356,15 +1358,49 @@ public class LatinIME extends InputMethodService implements
     // Deliberately a separate file from cybersyn-hidmode: that one already has two
     // independent writers (this daemon + SpectreBoard's own AmdMode toggle) that don't
     // coordinate, so it can't double as "is the overlay itself visible right now".
+    private static final String ARTEMIS_OVERLAY_VISIBLE_DIR = "/data/data/com.termux/files/usr/tmp";
+    private static final String ARTEMIS_OVERLAY_VISIBLE_NAME = "artemis-overlay-visible";
     private static final java.io.File ARTEMIS_OVERLAY_VISIBLE_FILE =
-            new java.io.File("/data/data/com.termux/files/usr/tmp/artemis-overlay-visible");
+            new java.io.File(ARTEMIS_OVERLAY_VISIBLE_DIR, ARTEMIS_OVERLAY_VISIBLE_NAME);
 
-    private boolean isArtemisOverlayVisible() {
+    // onEvaluateFullscreenMode() is called by the framework on every input-session start,
+    // orientation change, and EditorInfo change -- far too often for a synchronous disk read.
+    // A FileObserver keeps this in memory instead; only the observer callback touches disk.
+    private volatile boolean mArtemisOverlayVisible = false;
+    private android.os.FileObserver mArtemisOverlayObserver;
+
+    private boolean readArtemisOverlayVisibleFromDisk() {
         try (java.io.FileReader r = new java.io.FileReader(ARTEMIS_OVERLAY_VISIBLE_FILE)) {
             return r.read() == '1';
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private void startArtemisOverlayObserver() {
+        mArtemisOverlayVisible = readArtemisOverlayVisibleFromDisk();
+        mArtemisOverlayObserver = new android.os.FileObserver(
+                ARTEMIS_OVERLAY_VISIBLE_DIR,
+                android.os.FileObserver.MODIFY | android.os.FileObserver.CREATE
+                        | android.os.FileObserver.DELETE | android.os.FileObserver.MOVED_TO) {
+            @Override
+            public void onEvent(int event, String path) {
+                if (path == null || !path.equals(ARTEMIS_OVERLAY_VISIBLE_NAME)) return;
+                mArtemisOverlayVisible = readArtemisOverlayVisibleFromDisk();
+            }
+        };
+        mArtemisOverlayObserver.startWatching();
+    }
+
+    private void stopArtemisOverlayObserver() {
+        if (mArtemisOverlayObserver != null) {
+            mArtemisOverlayObserver.stopWatching();
+            mArtemisOverlayObserver = null;
+        }
+    }
+
+    private boolean isArtemisOverlayVisible() {
+        return mArtemisOverlayVisible;
     }
 
     @Override

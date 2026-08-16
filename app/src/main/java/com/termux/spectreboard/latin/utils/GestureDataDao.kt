@@ -80,8 +80,7 @@ class GestureDataDao(val db: Database) {
         }
     }}
 
-    fun getAllJsonData(context: Context): List<String> = synchronized(this) {
-        val result = mutableListOf<String>()
+    fun getAllJsonData(context: Context): Sequence<String> = synchronized(this) { sequence {
         db.readableDatabase.query(
             TABLE,
             arrayOf(COLUMN_DATA),
@@ -93,11 +92,10 @@ class GestureDataDao(val db: Database) {
         ).use {
             val exclusions = GestureDataGatheringSettings.getWordExclusions(context)
             while (it.moveToNext()) {
-                result.add(it.getString(0).filterExcludedSuggestions(exclusions))
+                yield(it.getString(0).filterExcludedSuggestions(exclusions))
             }
         }
-        result
-    }
+    }}
 
     fun markAsExported(ids: List<Long>, context: Context) = synchronized(this) {
         if (ids.isEmpty()) return@synchronized

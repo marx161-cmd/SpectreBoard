@@ -182,6 +182,10 @@
     <string name="gesture_input">Enable gesture typing</string>
     <!-- Description for "gesture_input" option. The user can input a word by tracing the letters of a word without releasing the finger from the screen.-->
     <string name="gesture_input_summary">Input a word by sliding through the letters</string>
+    <!-- Option to enable the neural (ONNX) gesture-typing engine, additionally ranking swipe candidates alongside the default engine.-->
+    <string name="gesture_neural_engine">Neural gesture engine</string>
+    <!-- Description for "gesture_neural_engine" option.-->
+    <string name="gesture_neural_engine_summary">Additionally rank swipe candidates with the on-device neural model</string>
     <!-- Option to enable gesture trail preview. The user can see a trail of the gesture during gesture input.-->
     <string name="gesture_preview_trail">Show gesture trail</string>
     <!-- Option to enable gesture floating text preview. The user can see a suggested word floating above the keyboard during a gesture input.-->

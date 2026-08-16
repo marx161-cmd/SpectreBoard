@@ -62,7 +62,8 @@ Java_com_termux_spectreboard_spectre_KenLmScorer_scoreAllNative(
     if (!g_model || !g_vocab) return nullptr;
 
     const char* ctx = env->GetStringUTFChars(contextStr, nullptr);
-    std::string ctxKey = (isBeginOfSentence == JNI_TRUE ? "1|" : "0|") + std::string(ctx);
+    std::string ctxStr(ctx);
+    std::string ctxKey = (isBeginOfSentence == JNI_TRUE ? "1|" : "0|") + ctxStr;
     env->ReleaseStringUTFChars(contextStr, ctx);
 
     // Build or reuse the context state.
@@ -76,7 +77,7 @@ Java_com_termux_spectreboard_spectre_KenLmScorer_scoreAllNative(
         } else {
             g_model->NullContextWrite(&state);
         }
-        std::istringstream iss(ctxKey);
+        std::istringstream iss(ctxStr);
         std::string w;
         while (iss >> w) {
             g_model->Score(state, g_vocab->Index(w), out_state);

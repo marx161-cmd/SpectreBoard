@@ -3,21 +3,12 @@ package com.termux.spectreboard.spectre
 import android.content.Context
 import android.util.Log
 import com.termux.spectreboard.npud.NpudClient
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
-import java.io.PrintWriter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
 
 class WhisperG5WorkerClient(private val context: Context) {
-    private var process: Process? = null
-    private var writer: PrintWriter? = null
-    private var stdoutQueue = LinkedBlockingQueue<String>()
-
     @Volatile
     private var hasProbed = false
 
@@ -73,21 +64,6 @@ class WhisperG5WorkerClient(private val context: Context) {
         hasProbed = false
     }
 
-    private fun readStatusLine(): String {
-        val deadline = System.currentTimeMillis() + RUN_TIMEOUT_MS
-        while (System.currentTimeMillis() < deadline) {
-            val remaining = deadline - System.currentTimeMillis()
-            val line = stdoutQueue.poll(remaining.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
-                ?: error("worker request timed out")
-            if (line.startsWith("WHISPER_G5_OK") || line.startsWith("WHISPER_G5_ERROR")) {
-                Log.i(TAG, line)
-                return line
-            }
-            Log.d(TAG, "worker: $line")
-        }
-        error("worker request timed out")
-    }
-
     private fun writeMel(file: File, mel: FloatBuffer) {
         val src = mel.duplicate()
         src.rewind()
@@ -115,13 +91,9 @@ class WhisperG5WorkerClient(private val context: Context) {
 
     companion object {
         private const val TAG = "WhisperG5Worker"
-        private const val TAG_ERR = "WhisperG5Worker-err"
         /** Model name as npud exposes it: the stem under <model-dir>/asr/. */
         const val NPUD_MODEL = "whisper_base_encoder_fp32_g5"
-        private const val MODEL_PATH = "/data/local/tmp/whisper_base_encoder_fp32_g5.tflite"
         private const val INPUT_FLOATS = 80 * 3000
         private const val OUTPUT_FLOATS = 1500 * 512
-        private const val START_TIMEOUT_MS = 15_000L
-        private const val RUN_TIMEOUT_MS = 15_000L
     }
 }
