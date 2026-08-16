@@ -1351,10 +1351,32 @@ public class LatinIME extends InputMethodService implements
         return super.onEvaluateInputViewShown();
     }
 
+    // Flag written by artemis-patch's ArtemisDaemonService (setOverlayVisibleFlag) --
+    // "1" while the Artemis streaming overlay is actually shown, "0"/absent otherwise.
+    // Deliberately a separate file from cybersyn-hidmode: that one already has two
+    // independent writers (this daemon + SpectreBoard's own AmdMode toggle) that don't
+    // coordinate, so it can't double as "is the overlay itself visible right now".
+    private static final java.io.File ARTEMIS_OVERLAY_VISIBLE_FILE =
+            new java.io.File("/data/data/com.termux/files/usr/tmp/artemis-overlay-visible");
+
+    private boolean isArtemisOverlayVisible() {
+        try (java.io.FileReader r = new java.io.FileReader(ARTEMIS_OVERLAY_VISIBLE_FILE)) {
+            return r.read() == '1';
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Override
     public boolean onEvaluateFullscreenMode() {
         if (isImeSuppressedByHardwareKeyboard() || mSettings.getCurrent().mIsFloatingKeyboard) {
             // If there is a hardware keyboard or we're floating, disable full screen mode.
+            return false;
+        }
+        // The plain white AOSP fullscreen extract-view bar (this method's normal
+        // landscape/available-height heuristic below) was appearing for ANY app's IME
+        // session, not just while streaming -- gate it to only the artemis overlay.
+        if (!isArtemisOverlayVisible()) {
             return false;
         }
         // Reread resource value here, because this method is called by the framework as needed.
@@ -1375,6 +1397,24 @@ public class LatinIME extends InputMethodService implements
             return usedHeight > availableHeight * 0.6; // if we have less than 40% available, use fullscreen mode
         }
         return false;
+    }
+
+    @Override
+    public View onCreateExtractTextView() {
+        // AOSP's default extract view (a big white ExtractEditText + action bar) is
+        // the "plain white window" this was gated to avoid -- but gating WHEN it
+        // shows doesn't change WHAT it looks like once it does. LatinIME drives text
+        // through its own InputConnection, not the mirrored ExtractEditText, so
+        // nothing here actually needs that default view. Returning a minimal,
+        // transparent placeholder with no android:id/inputExtractEditText child
+        // means the framework's extracted-text sync path (which null-checks
+        // mExtractEditText before touching it) is a no-op -- this is a supported
+        // customization point, not a workaround.
+        View v = new View(this);
+        v.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        v.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, 1));
+        return v;
     }
 
     @Override
