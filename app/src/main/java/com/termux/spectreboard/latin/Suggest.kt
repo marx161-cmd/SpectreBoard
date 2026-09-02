@@ -26,6 +26,7 @@ import com.termux.spectreboard.latin.utils.AutoCorrectionUtils
 import com.termux.spectreboard.latin.utils.Log
 import com.termux.spectreboard.latin.utils.BackgroundGatheringCache
 import com.termux.spectreboard.latin.utils.SuggestionResults
+import com.termux.spectreboard.spectre.AcousticSuggestions
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.GruScorer
 import com.termux.spectreboard.spectre.KenLmScorer
@@ -149,6 +150,37 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             }
             lastBatchAlternatives = emptyList()
         }
+
+        // Acoustic word-alternative candidates from on-device Parakeet dictation (see
+        // com.termux.spectreboard.spectre.AcousticSuggestions): only meaningful when the
+        // user touched an existing word to correct it (isResumed), never during live typing
+        // (a typed word has no acoustic evidence). Inserted positionally, same as the
+        // phonetic/batch blocks above -- WordCorrector.correctAcousticOnly already ranks
+        // these by acoustic + LM-in-context score, so no further score calibration against
+        // rerankCombined's dictionary band is needed or attempted.
+        try {
+            if (wordComposer.isResumed && typedWordString.isNotEmpty() && AcousticSuggestions.isActive) {
+                val leftContext = ngramContext.extractPrevWordsContextArray()?.filterNotNull() ?: emptyList()
+                val acoustic = AcousticSuggestions.candidatesFor(typedWordString, leftContext)
+                if (acoustic.isNotEmpty()) {
+                    val existing = suggestionsContainer.map { it.mWord.lowercase() }.toMutableSet()
+                    val typedLower = typedWordString.lowercase()
+                    val toInsert = acoustic.asSequence()
+                        .filter { it.lowercase() != typedLower && existing.add(it.lowercase()) }
+                        .take(4)
+                        .toList()
+                    for ((rank, word) in toInsert.withIndex().reversed()) {
+                        suggestionsContainer.add(min(1, suggestionsContainer.size), SuggestedWordInfo(
+                            word, "", ACOUSTIC_SCORE_BASE - rank,
+                            SuggestedWordInfo.KIND_CORRECTION,
+                            Dictionary.DICTIONARY_ACOUSTIC,
+                            SuggestedWordInfo.NOT_AN_INDEX,
+                            SuggestedWordInfo.NOT_A_CONFIDENCE
+                        ))
+                    }
+                }
+            }
+        } catch (_: Exception) {}
 
         // store the original SuggestedWordInfo for typed word, as it will be removed
         // we may want to re-add it in case auto-correction happens, so that the original word can at least be selected
@@ -574,6 +606,13 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
 
         // Close to -2**31
         private const val SUPPRESS_SUGGEST_THRESHOLD = -2000000000
+
+        // Score for acoustic candidates from on-device Parakeet dictation (see
+        // AcousticSuggestions), inserted positionally rather than via rerankCombined's
+        // dictionary-band comparator -- this only orders them relative to each other via
+        // capitalizeAndAddTrailingSingleQuotes/removeDupsAndTypedWord's internal sort, not
+        // against native dictionary results. Parity with the phonetic-expansion block's 127.
+        private const val ACOUSTIC_SCORE_BASE = 127
 
         private const val MAXIMUM_AUTO_CORRECT_LENGTH_FOR_GERMAN = 12
         // TODO: should we add Finnish here?

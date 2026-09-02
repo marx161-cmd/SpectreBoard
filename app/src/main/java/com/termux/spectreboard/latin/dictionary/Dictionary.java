@@ -44,6 +44,12 @@ public abstract class Dictionary {
     public static final String TYPE_RESUMED = "resumed";
     public static final PhonyDictionary DICTIONARY_RESUMED = new PhonyDictionary(TYPE_RESUMED);
 
+    // Acoustic word-alternative candidates from on-device Parakeet dictation (see
+    // com.termux.spectreboard.spectre.AcousticSuggestions), surfaced when the cursor
+    // touches a word that was dictated this session.
+    public static final String TYPE_ACOUSTIC = "acoustic";
+    public static final PhonyDictionary DICTIONARY_ACOUSTIC = new PhonyDictionary(TYPE_ACOUSTIC);
+
     // The following types of dictionary have actual functional instances. We don't need final
     // phony dictionary instances for them.
     public static final String TYPE_MAIN = "main";
