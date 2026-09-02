@@ -600,8 +600,15 @@ public final class InputLogic {
         final int codePointBeforeCursor = mConnection.getCodePointBeforeCursor();
         if (Character.isLetterOrDigit(codePointBeforeCursor)
                 || settingsValues.isUsuallyFollowedBySpace(codePointBeforeCursor)) {
-            final boolean autoShiftHasBeenOverriden = keyboardSwitcher.getKeyboardShiftMode() !=
-                    getCurrentAutoCapsState(settingsValues);
+            // autoShiftHasBeenOverridden was comparing two incompatible int spaces before:
+            // getKeyboardShiftMode() returns WordComposer.CAPS_MODE_* (0,1,3,5,7) while
+            // getCurrentAutoCapsState() returns TextUtils.CAP_MODE_* (0,0x1000,0x2000,0x4000),
+            // so the check was effectively just "are both zero". Normalize each side to a boolean
+            // first (ported from upstream 432a10a9, which fixed the same bug after CapsMode became
+            // an enum).
+            final boolean autoShiftHasBeenOverriden =
+                    (keyboardSwitcher.getKeyboardShiftMode() == WordComposer.CAPS_MODE_OFF)
+                            != (getCurrentAutoCapsState(settingsValues) == 0);
             if (settingsValues.mAutospaceBeforeGestureTyping)
                 mSpaceState = SpaceState.PHANTOM;
             if (!autoShiftHasBeenOverriden) {
