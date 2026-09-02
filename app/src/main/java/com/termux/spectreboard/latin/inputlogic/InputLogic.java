@@ -38,6 +38,7 @@ import com.termux.spectreboard.latin.dictionary.DictionaryFactory;
 import com.termux.spectreboard.latin.CorrectionHistory;
 import com.termux.spectreboard.latin.LastComposedWord;
 import com.termux.spectreboard.latin.LatinIME;
+import com.termux.spectreboard.spectre.parakeet.ParakeetDictationHost;
 import com.termux.spectreboard.latin.NgramContext;
 import com.termux.spectreboard.latin.RichInputConnection;
 import com.termux.spectreboard.latin.SingleDictionaryFacilitator;
@@ -1832,6 +1833,17 @@ public final class InputLogic {
     public void restartSuggestionsOnWordTouchedByCursor(final SettingsValues settingsValues,
             // TODO: remove this argument, put it into settingsValues
             final String currentKeyboardScript) {
+        // Parakeet dictation (see ParakeetDictationHost) writes to the field via the raw
+        // InputConnection, bypassing mConnection's own cursor-position tracking, so
+        // mConnection's cached position can be stale for the whole span a dictation session
+        // is active (capturing, or still finalising the last utterance). Acting on that
+        // stale position here would touch/compose the wrong word — bail out entirely while
+        // dictation owns the field; this is never a real user cursor tap in that window.
+        final ParakeetDictationHost parakeetHost = mLatinIME.getParakeetHost();
+        if (parakeetHost != null && parakeetHost.isDictationActive()) {
+            mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+            return;
+        }
         // HACK: We may want to special-case some apps that exhibit bad behavior in case of
         // recorrection. This is a temporary, stopgap measure that will be removed later.
         // TODO: remove this.
