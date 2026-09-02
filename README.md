@@ -138,6 +138,8 @@ The icon is licensed under [Creative Commons BY-SA 4.0](https://creativecommons.
 - [Hugging Face Transformers](https://github.com/huggingface/transformers) by Hugging Face — used to load and export the Whisper model (Apache 2.0)
 - [LiteRT](https://ai.google.dev/edge/litert) by Google — explored for Tensor G5 NPU acceleration; `LiteRtEncoder.kt` is included in the source but not active (Apache 2.0)
 - [CleverKeys](https://github.com/tribixbite/CleverKeys) by tribixbite — open-source neural gesture typing engine (transformer encoder-decoder ONNX models), adapted as ensemble candidate generator alongside the Google gesture library (GPL-3.0)
+- [Outspoke](https://github.com/minburg/outspoke) by minburg — fully on-device streaming ASR keyboard (NVIDIA Parakeet-TDT-0.6B-v3, ONNX Runtime); its audio capture, VAD, chunked-streaming inference pipeline, text-injection/alignment layer, and acoustic word-correction plumbing were ported wholesale into `spectre/parakeet/` as SpectreBoard's on-device dictation engine, alongside the existing comrade-Whisper toolbar dictation (GPL-3.0)
+- [Parakeet-TDT-0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) by NVIDIA — the ASR model powering on-device dictation, via the [istupakov/parakeet-tdt-0.6b-v3-onnx](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx) ONNX export Outspoke itself uses (CC-BY-4.0)
 
 ## HeliBoard (upstream)
 - Icon by [Fabian OvrWrt](https://github.com/FabianOvrWrt) with contributions from [The Eclectic Dyslexic](https://github.com/the-eclectic-dyslexic)

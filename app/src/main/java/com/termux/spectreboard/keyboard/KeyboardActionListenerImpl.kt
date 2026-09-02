@@ -604,43 +604,9 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
      *   {"type":"revise","pop_chars":N,"replace_with":"..."} — surgical rewrite
      */
     private fun toggleDictation() {
-        val composing = StringBuilder()
-        StreamDictation.toggle(
-            context = latinIME,
-            onAppend = { text ->
-                latinIME.currentInputConnection?.let { ic ->
-                    composing.append(text)
-                    ic.beginBatchEdit()
-                    ic.setComposingText(composing.toString(), 1)
-                    ic.endBatchEdit()
-                }
-            },
-            onFinal = { text ->
-                latinIME.currentInputConnection?.let { ic ->
-                    ic.beginBatchEdit()
-                    ic.commitText(composing.toString(), 1)
-                    composing.clear()
-                    if (text.isNotEmpty()) {
-                        ic.commitText("$text ", 1)
-                    } else {
-                        ic.commitText(" ", 1)
-                    }
-                    ic.endBatchEdit()
-                }
-            },
-            onRevise = { popChars, replacement ->
-                latinIME.currentInputConnection?.let { ic ->
-                    val pop = popChars.coerceAtMost(composing.length)
-                    val start = (composing.length - pop).coerceAtLeast(0)
-                    composing.delete(start, composing.length)
-                    composing.append(replacement)
-                    ic.beginBatchEdit()
-                    ic.setComposingText(composing.toString(), 1)
-                    ic.endBatchEdit()
-                }
-            },
-            onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
-        )
+        val host = latinIME.parakeetHost ?: return
+        host.onStateChange = { latinIME.refreshToolbarButtonActivatedStates() }
+        host.onRecordToggle()
     }
 
     companion object {

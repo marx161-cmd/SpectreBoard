@@ -1,0 +1,730 @@
+// Ported from Outspoke (github.com/minburg/outspoke, GPLv3) ui/keyboard/KeyboardViewModel.kt.
+package com.termux.spectreboard.spectre.parakeet.ui
+
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.termux.spectreboard.spectre.parakeet.AudioCaptureManager
+import com.termux.spectreboard.spectre.parakeet.EnterAction
+import com.termux.spectreboard.spectre.parakeet.TextInjector
+import com.termux.spectreboard.spectre.parakeet.WordSuggestionProvider
+import com.termux.spectreboard.spectre.parakeet.WordAtCursor
+import com.termux.spectreboard.spectre.parakeet.EngineState
+import com.termux.spectreboard.spectre.parakeet.InferenceRepository
+import com.termux.spectreboard.spectre.parakeet.PipelineDiagnostics
+import com.termux.spectreboard.spectre.parakeet.TranscriptResult
+import com.termux.spectreboard.spectre.parakeet.preferences.AppPreferences
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+private const val TAG = "KeyboardViewModel"
+
+/**
+ * Bridges the IME lifecycle, audio capture, and inference pipeline into a stream of
+ * [KeyboardUiState] values consumed by [KeyboardScreen].
+ */
+class KeyboardViewModel(
+    private val audioCaptureManager: AudioCaptureManager,
+    private val appPreferences: AppPreferences,
+    private val wordSuggestionProvider: WordSuggestionProvider,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<KeyboardUiState>(
+        KeyboardUiState.EngineLoading(KeyboardUiState.LoadingReason.EngineStarting)
+    )
+    val uiState: StateFlow<KeyboardUiState> = _uiState.asStateFlow()
+
+    /** Normalised RMS amplitude [0.0, 1.0] - updated by [AudioCaptureManager] per chunk. */
+    val amplitude: StateFlow<Float> = audioCaptureManager.amplitude
+
+    /**
+     * `"HOLD"` (default) or `"TAP_TOGGLE"`.
+     * Collected eagerly so the TalkButton always has the latest value without
+     * needing a suspend context.
+     */
+    val triggerMode: StateFlow<String> = appPreferences.triggerMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "HOLD")
+
+    /**
+     * What the delete (trash) button does: `"DELETE_ALL"` (default) or
+     * `"DELETE_LAST_SENTENCE"`. Collected eagerly so [deleteAll] can read a
+     * synchronous snapshot without a suspend context.
+     */
+    val deleteButtonMode: StateFlow<String> = appPreferences.deleteButtonMode
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "DELETE_ALL")
+
+    /**
+     * `true` when the user opted into raw (unprocessed) microphone capture,
+     * which bypasses the platform's echo cancellation - needed when transcribing
+     * audio played from the device's own speaker.
+     * Collected eagerly so [onRecordStart] can read a synchronous snapshot.
+     */
+    val rawMicCapture: StateFlow<Boolean> = appPreferences.rawMicCapture
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Whether VAD (voice activity detection) is enabled. Collected eagerly so the value is
+     * always available as a snapshot when recording starts - no suspend context required.
+     */
+    val vadSensitivity: StateFlow<Boolean> = appPreferences.vadSensitivity
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /**
+     * `true` when the currently selected model is a Whisper variant.
+     * Used to conditionally show the language selector in the keyboard UI.
+     */
+    val isWhisperEngine: StateFlow<Boolean> = appPreferences.selectedModelId
+        .map { it.name.startsWith("WHISPER") }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * Currently selected Whisper language tag: `"auto"`, `"en"`, `"de"`, or `"nl"`.
+     * Collected eagerly so the selector always reflects the saved value on first draw.
+     */
+    val whisperLanguage: StateFlow<String> = appPreferences.whisperLanguage
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "auto")
+
+    /**
+     * The post-processing language used by the cleaning pipeline (filler removal, number
+     * normalisation, spurious-period handling). Mirrors [SpeechEngine.currentLanguage] for
+     * the active engine: the user's forced language, or `"en"` when set to `"auto"` / unset.
+     *
+     * Collected eagerly so [com.termux.spectreboard.spectre.parakeet.TextInjector]'s display-cleaning lambda can
+     * read a synchronous snapshot when injecting text — this keeps the display path's
+     * language consistent with the engine's (e.g. so German noun capitalisation is
+     * preserved and German fillers are removed in the displayed text, not just in the
+     * stable-chunk tracking path).
+     */
+    val currentLanguage: StateFlow<String> = appPreferences.forcedLanguage
+        .map { it ?: "en" }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "en")
+
+    /**
+     * `true` when the transcript post-processing pipeline (filler removal, stutter collapse,
+     * repetition deduplication, capitalisation) is active.  Defaults to `true`.
+     * Collected eagerly so the live value is always available when recording starts.
+     */
+    val postprocessingEnabled: StateFlow<Boolean> = appPreferences.postprocessingEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /**
+     * Pipeline diagnostic counters for the current or most recent recording session.
+     *
+     * Updated live during recording and kept visible after the session ends so the user
+     * can glance at the keyboard status bar to see if anything unusual happened (trims,
+     * alignment recoveries, blanks discarded) without needing logcat.
+     *
+     * Reset at the start of each new recording in [onRecordStart].
+     */
+    private val _diagnostics = MutableStateFlow(PipelineDiagnostics())
+    val diagnostics: StateFlow<PipelineDiagnostics> = _diagnostics.asStateFlow()
+
+    /**
+     * Whether the pipeline diagnostics badge is visible on the keyboard.
+     * Collected eagerly so the UI always reflects the saved preference on first draw.
+     */
+    val showPipelineDiagnostics: StateFlow<Boolean> = appPreferences.showPipelineDiagnostics
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * `true` when the word-suggestion bar feature is enabled in preferences.
+     * When `false` the bar is never shown and no dictionary work is performed.
+     */
+    val suggestionBarFeatureEnabled: StateFlow<Boolean> = appPreferences.suggestionBarEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * The word currently under the text cursor, or `null` when the cursor is not inside
+     * a word.  Updated by [updateWordAtCursor] on every cursor movement and after each
+     * committed final transcript.  Consumed by the suggestion bar.
+     */
+    private val _wordAtCursor = MutableStateFlow<WordAtCursor?>(null)
+    val wordAtCursor: StateFlow<WordAtCursor?> = _wordAtCursor.asStateFlow()
+
+    /**
+     * Spelling suggestions for the word currently under the cursor, delivered
+     * asynchronously by Android's [WordSuggestionProvider] (SpellCheckerSession).
+     *
+     * Empty when the cursor is between words, the suggestion bar is dismissed, or the
+     * system spell-checker returns no alternatives (word is correctly spelled).
+     *
+     * Reset to empty at the start of each new recording session via [onRecordStart].
+     */
+    private val _wordSuggestions = MutableStateFlow<List<String>>(emptyList())
+    val wordSuggestions: StateFlow<List<String>> = _wordSuggestions.asStateFlow()
+
+    /**
+     * `true` after the user has tapped the dismiss (×) button in the suggestion bar.
+     * Suppresses further suggestions until the cursor moves to a new word.
+     * In-memory only — intentionally not persisted to DataStore.
+     */
+    private val _suggestionBarDismissed = MutableStateFlow(false)
+    val suggestionBarDismissed: StateFlow<Boolean> = _suggestionBarDismissed.asStateFlow()
+
+    init {
+        // Wire up the spell-checker callback.
+        // dismissed state is in-memory only — never read from DataStore.
+        wordSuggestionProvider.onSuggestions = { suggestions ->
+            // Ignore suggestions that arrive after the bar was dismissed, or while
+            // recording / transcription is active — showing them mid-session confuses
+            // users who see suggestions flash and disappear as new words come in.
+            if (!_suggestionBarDismissed.value && !isActiveSession()) {
+                _wordSuggestions.value = suggestions
+            }
+        }
+
+        // Propagate the user's active-language selection to the provider whenever it changes.
+        viewModelScope.launch {
+            appPreferences.suggestionBarLanguages.collect { tags ->
+                wordSuggestionProvider.setActiveLanguages(tags)
+            }
+        }
+    }
+
+    /**
+     * Reads the word at the current cursor position from [textInjector] and publishes it
+     * to [wordAtCursor].  When a word is found and the bar is not dismissed, also fires an
+     * asynchronous spell-checker query whose result updates [wordSuggestions].
+     *
+     * Safe to call from the main thread — [TextInjector.wordAtCursor] performs only
+     * lightweight [android.view.inputmethod.InputConnection] calls.
+     *
+     * Called on every [onUpdateSelection] and after each [TranscriptResult.Final] commit.
+     */
+    fun updateWordAtCursor() {
+        // Do nothing when the feature is disabled — avoids even reading the cursor word.
+        if (!suggestionBarFeatureEnabled.value) return
+        // Do nothing during an active recording or transcription session — suggestions
+        // would flash briefly and disappear as each new word commits, which is confusing.
+        if (isActiveSession()) return
+        val wac = textInjector?.wordAtCursor()
+        _wordAtCursor.value = wac
+        if (wac != null && !_suggestionBarDismissed.value) {
+            Log.d(TAG, "updateWordAtCursor (${wac.word.length} chars) — querying corrector")
+            wordSuggestionProvider.getSuggestions(wac.word, wac.sentenceContext)
+        } else {
+            Log.d(TAG, "updateWordAtCursor → no cursor word (dismissed=${_suggestionBarDismissed.value})")
+            _wordSuggestions.value = emptyList()
+        }
+    }
+
+    /**
+     * Returns true when the keyboard is actively recording or processing a transcription.
+     * The suggestion bar must not be shown in these states.
+     */
+    private fun isActiveSession(): Boolean {
+        val s = _uiState.value
+        return s is KeyboardUiState.Listening ||
+                s is KeyboardUiState.Processing ||
+                s is KeyboardUiState.Transcribing
+    }
+
+    /**
+     * Clears word suggestions so the bar vanishes, without setting a persistent dismissed
+     * state. Behaves identically to clicking at the end of the text field — the bar
+     * reappears the next time the user taps on a word.
+     */
+    fun dismissSuggestionBar() {
+        _wordSuggestions.value = emptyList()
+    }
+
+    /**
+     * Replaces the word currently under the text cursor with [word].
+     *
+     * Delegates to [TextInjector.replaceCursorWord] and then refreshes [wordAtCursor] so
+     * the suggestion bar reflects the new cursor state immediately.  Safe to call on the
+     * main thread.
+     *
+     * Called by the suggestion bar when the user taps a chip.
+     */
+    fun replaceWordAtCursor(word: String) {
+        textInjector?.replaceCursorWord(word)
+        updateWordAtCursor()
+    }
+
+    /**
+     * When `true` (default), number-word sequences in the transcript are converted to
+     * digit form by [com.termux.spectreboard.spectre.parakeet.NumberNormaliser] as part of the
+     * post-processing pipeline.
+     */
+    val formatNumbersAsDigits: StateFlow<Boolean> = appPreferences.formatNumbersAsDigits
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    /**
+     * Persists [tag] to preferences and immediately forwards it to the loaded engine.
+     * Safe to call at any time - the engine's [setLanguage] is thread-safe.
+     */
+    fun setWhisperLanguage(tag: String) {
+        inferenceRepository?.setLanguage(tag)
+        viewModelScope.launch { appPreferences.setWhisperLanguage(tag) }
+    }
+
+    /**
+     * Whether the first-run keyboard tutorial should currently be visible.
+     * Resolves to `true` on the very first keyboard opening and `false` permanently
+     * after [dismissTutorial] is called.
+     */
+    val showTutorial: StateFlow<Boolean> = appPreferences.keyboardTutorialShown
+        .map { shown -> !shown }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Persists the tutorial as seen so it is never shown again. */
+    fun dismissTutorial() {
+        viewModelScope.launch { appPreferences.setKeyboardTutorialShown(true) }
+    }
+
+    private val _engineState = MutableStateFlow<EngineState>(EngineState.Unloaded)
+
+    /** Called by [OutspokeInputMethodService] whenever [InferenceService.engineState] changes. */
+    fun setEngineState(state: EngineState) {
+        _engineState.value = state
+        when (state) {
+            EngineState.Unloaded -> _uiState.value = KeyboardUiState.EngineLoading(
+                KeyboardUiState.LoadingReason.ModelNotDownloaded
+            )
+
+            EngineState.Loading -> _uiState.value = KeyboardUiState.EngineLoading(
+                KeyboardUiState.LoadingReason.EngineStarting
+            )
+
+            EngineState.Ready -> {
+                // Clear any engine-driven blocking state so the user can start recording.
+                if (_uiState.value is KeyboardUiState.EngineLoading ||
+                    (_uiState.value is KeyboardUiState.Error &&
+                            (_uiState.value as KeyboardUiState.Error).reason == KeyboardUiState.ErrorReason.EngineLoadFailed)
+                ) {
+                    _uiState.value = KeyboardUiState.Idle
+                }
+            }
+
+            is EngineState.Error -> _uiState.value = KeyboardUiState.Error(
+                reason = KeyboardUiState.ErrorReason.EngineLoadFailed,
+                detail = state.message,
+            )
+        }
+    }
+
+    private var inferenceRepository: InferenceRepository? = null
+
+    /** Set by the IME glue when the service binding is established. */
+    fun setInferenceRepository(repo: InferenceRepository?) {
+        inferenceRepository = repo
+        // Apply the persisted language tag immediately (hardcoded "en" via AppPreferences default).
+        repo?.setLanguage(whisperLanguage.value)
+        // Parakeet's ONNX export has no language-conditioning tensor; setLanguageConstraints is
+        // a no-op for it, so an empty constraint set is correct here.
+        repo?.setLanguageConstraints(emptyList())
+    }
+
+    private var textInjector: TextInjector? = null
+
+    private val _enterAction = MutableStateFlow(EnterAction.DONE)
+
+    /**
+     * The context-aware action the Enter key should perform for the currently focused editor.
+     * Updated each time [setTextInjector] is called (i.e. on every [onStartInput]).
+     */
+    val enterAction: StateFlow<EnterAction> = _enterAction.asStateFlow()
+
+    fun setTextInjector(injector: TextInjector?) {
+        textInjector = injector
+        _enterAction.value = injector?.enterAction ?: EnterAction.DONE
+    }
+
+    private val _isContinuousMode = MutableStateFlow(false)
+
+    /**
+     * `true` while the keyboard is in locked continuous-recording mode (engaged by
+     * dragging the talk button upward).  Resets to `false` whenever recording stops.
+     */
+    val isContinuousMode: StateFlow<Boolean> = _isContinuousMode.asStateFlow()
+
+    /**
+     * Called by the UI when the user drags the talk button past the lock threshold.
+     * Recording continues uninterrupted - only the visual state changes.
+     */
+    fun onContinuousModeEnabled() {
+        _isContinuousMode.value = true
+    }
+
+    /**
+     * Called when the user taps "Retry" after a transient error (e.g. low-confidence failure).
+     *
+     * Clears the error and returns to [KeyboardUiState.Idle] so the user starts a fresh
+     * recording with a normal press (HOLD) or a drag-up-to-lock — exactly like the initial
+     * recording.
+     *
+     * We intentionally do NOT auto-start recording and do NOT engage continuous mode. The
+     * previous behaviour forced continuous mode and immediately started capturing, which
+     * made the button jump straight into locked recording with no finger on it — confusing
+     * and not what "retry" implies. "Retry" means "let me try again", i.e. dismiss the
+     * error and give me back the idle button; the user then chooses how to record.
+     */
+    fun onRetry() {
+        // Cancel any lingering capture / inference from the failed session so it cannot
+        // bleed into the next one, then return to Idle.
+        captureJob?.cancel()
+        captureJob = null
+        audioCaptureManager.stopCapture()
+        _isContinuousMode.value = false
+        _uiState.value = KeyboardUiState.Idle
+    }
+
+    /** Delete the character immediately before the cursor. */
+    fun deleteChar() {
+        textInjector?.deleteChar()
+    }
+
+    /** Delete backward to the previous word boundary. */
+    fun deleteWord() {
+        textInjector?.deleteWord()
+    }
+
+    /**
+     * Performs the configured delete action: clears the whole editor field
+     * ([deleteButtonMode] == `"DELETE_ALL"`, the default) or removes only the
+     * last sentence before the cursor (`"DELETE_LAST_SENTENCE"`).
+     */
+    fun deleteAll() {
+        if (deleteButtonMode.value == "DELETE_LAST_SENTENCE") {
+            textInjector?.deleteLastSentence()
+        } else {
+            textInjector?.deleteAll()
+        }
+    }
+
+    /** Insert a newline at the current cursor position, replacing any active selection. */
+    fun newline() {
+        textInjector?.sendNewline()
+    }
+
+    /**
+     * Perform the context-aware Enter action for the currently focused editor.
+     * Inserts a newline for multi-line fields; otherwise triggers the editor's IME action
+     * (search, send, go, done, next) via [InputConnection.performEditorAction].
+     */
+    fun performEnterAction() {
+        textInjector?.performEnterAction()
+    }
+
+    private var captureJob: Job? = null
+
+    /**
+     * Set by [com.termux.spectreboard.spectre.parakeet.OutspokeInputMethodService] to a lambda that requests
+     * the inference service to reload its (still-present) model and re-establish the
+     * repository binding.
+     *
+     * Invoked from [onRecordStart] when the engine reports [EngineState.Ready] but no
+     * [InferenceRepository] is currently bound — a binder desync that would otherwise let
+     * the mic open with no transcription. The callback lets the IME react (rebind / reload)
+     * instead of the VM silently doing nothing.
+     */
+    var onMissingRepo: (() -> Unit)? = null
+
+    /**
+     * Start microphone capture and pipe audio through the inference engine.
+     * Ignored if the engine is not yet [EngineState.Ready] or if no
+     * [InferenceRepository] is currently bound (a binder desync).
+     */
+    fun onRecordStart() {
+        if (_engineState.value !is EngineState.Ready) {
+            Log.w(TAG, "onRecordStart() ignored - engine not ready (${_engineState.value})")
+            return
+        }
+
+        // EngineState.Ready without a bound InferenceRepository means the UI shows
+        // a ready talk button but transcription would silently no-op (the old code fell
+        // into a "capture audio without transcription" branch). Surface the desync as a
+        // loading state and ask the IME to reload/rebind instead of opening the mic.
+        if (inferenceRepository == null) {
+            Log.w(
+                TAG,
+                "onRecordStart() ignored - engine Ready but no InferenceRepository bound (desync); requesting reload"
+            )
+            _uiState.value = KeyboardUiState.EngineLoading(
+                KeyboardUiState.LoadingReason.EngineStarting
+            )
+            onMissingRepo?.invoke()
+            return
+        }
+
+        captureJob?.cancel()
+        _uiState.value = KeyboardUiState.Listening
+        _diagnostics.value = PipelineDiagnostics()
+        _wordSuggestions.value = emptyList()
+        // Dismissed flag is no longer set persistently — bar reappears on next word tap.
+
+        captureJob = viewModelScope.launch {
+            // Capture this coroutine's Job reference so the collect lambda can detect
+            // whether it belongs to the currently active session.  If onRecordStart() is
+            // called again (e.g. from onFieldCleared after a "Send"), captureJob is
+            // replaced with the new job; any collect callbacks still queued from the OLD
+            // job see captureJob != myJob and return immediately - preventing stale
+            // partial results from bleeding into the fresh TextInjector state.
+            val myJob = coroutineContext[Job]
+
+            try {
+                // Repo was verified non-null above; re-read defensively in case the binder
+                // detached between the guard and this launch. If it did become null, abort
+                // cleanly rather than capturing audio with nowhere to send it.
+                val repo = inferenceRepository
+                if (repo == null) {
+                    Log.w(TAG, "InferenceRepository detached before capture started - aborting session")
+                    _isContinuousMode.value = false
+                    _uiState.value = KeyboardUiState.EngineLoading(
+                        KeyboardUiState.LoadingReason.EngineStarting
+                    )
+                    onMissingRepo?.invoke()
+                    return@launch
+                }
+
+                // Pipe audio through the inference engine on Dispatchers.Default.
+                // TranscriptResult emissions drive both the UI and text injection.
+                repo.transcribe(
+                    audio = audioCaptureManager.startCapture(
+                        vadEnabled = vadSensitivity.value,
+                        rawSource = rawMicCapture.value,
+                    ),
+                    postprocessingEnabled = postprocessingEnabled.value,
+                    formatNumbersAsDigits = formatNumbersAsDigits.value,
+                ).collect { result ->
+                    // Stale-session guard: if this job has been superseded (e.g. the field
+                    // was cleared and a new session started), discard this result entirely
+                    // so no old-session text is injected into the fresh TextInjector.
+                    if (captureJob != null && captureJob != myJob) return@collect
+
+                    when (result) {
+                        is TranscriptResult.Partial -> {
+                            _uiState.value = KeyboardUiState.Processing(result.text)
+                            textInjector?.setPartial(result.text)
+                            // Update alignment recovery counter from the injector.
+                            val injector = textInjector
+                            if (injector != null) {
+                                val d = _diagnostics.value
+                                if (injector.alignmentRecoveryCount > d.alignmentRecoveries) {
+                                    _diagnostics.value = d.copy(alignmentRecoveries = injector.alignmentRecoveryCount)
+                                }
+                            }
+                        }
+
+                        is TranscriptResult.Final -> {
+                            Log.d(
+                                TAG, "Final transcript: \"${result.text}\"" +
+                                        if (result.isUtteranceBoundary) " [utterance boundary]" else ""
+                            )
+                            textInjector?.commitFinal(result.text)
+                            updateWordAtCursor()
+                            if (!result.isUtteranceBoundary) {
+                                _isContinuousMode.value = false
+                                _uiState.value = KeyboardUiState.Idle
+                                captureJob = null
+                            }
+                        }
+
+                        is TranscriptResult.Failure -> {
+                            Log.e(TAG, "Transcription failure", result.cause)
+                            _isContinuousMode.value = false
+                            _uiState.value = KeyboardUiState.Error(
+                                reason = KeyboardUiState.ErrorReason.TranscriptionFailed,
+                                detail = result.cause.message,
+                            )
+                        }
+
+                        // The audio window was trimmed: shrink committedWords so the
+                        // next partial can re-anchor without losing middle sentences.
+                        is TranscriptResult.WindowTrimmed -> {
+                            Log.d(
+                                TAG, "WindowTrimmed - resetting TextInjector alignment" +
+                                        if (result.stableWords.isNotEmpty()) " (stableWords=${result.stableWords.size}w)" else ""
+                            )
+                            textInjector?.resetAfterTrim(result.stableWords)
+                            _diagnostics.value = _diagnostics.value.copy(
+                                windowTrims = _diagnostics.value.windowTrims + 1
+                            )
+                        }
+
+                        // The model saw audio but couldn't resolve a word (weak
+                        // high-frequency fricatives). Surface a brief "didn't catch that"
+                        // cue, then return to the listening/idle state so the user can
+                        // retry without tapping to clear it.
+                        is TranscriptResult.NoSpeech -> {
+                            Log.d(TAG, "NoSpeech — surfacing 'didn't catch that'")
+                            _uiState.value = KeyboardUiState.NoSpeech
+                            viewModelScope.launch {
+                                delay(2000)
+                                if (_uiState.value is KeyboardUiState.NoSpeech) {
+                                    _uiState.value =
+                                        if (_isContinuousMode.value) KeyboardUiState.Listening
+                                        else KeyboardUiState.Idle
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // The flow completed normally. If still in Transcribing (or Listening), it
+                // means VAD filtered out all audio (nothing was said) so InferenceRepository
+                // emitted no Final result. Reset to Idle so the button becomes usable again.
+                if (_uiState.value == KeyboardUiState.Transcribing ||
+                    _uiState.value == KeyboardUiState.Listening
+                ) {
+                    Log.d(TAG, "Transcription flow ended with no Final result - resetting to Idle")
+                    _isContinuousMode.value = false
+                    _uiState.value = KeyboardUiState.Idle
+                    captureJob = null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SecurityException) {
+                Log.e(TAG, "Microphone permission denied", e)
+                _isContinuousMode.value = false
+                _uiState.value = KeyboardUiState.Error(
+                    reason = KeyboardUiState.ErrorReason.MicPermissionDenied,
+                )
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "AudioRecord failed to initialise", e)
+                _isContinuousMode.value = false
+                _uiState.value = KeyboardUiState.Error(
+                    reason = KeyboardUiState.ErrorReason.MicInitFailed,
+                    detail = e.message,
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Unexpected audio capture error", e)
+                _isContinuousMode.value = false
+                _uiState.value = KeyboardUiState.Error(
+                    reason = KeyboardUiState.ErrorReason.AudioCaptureFailed,
+                    detail = e.message,
+                )
+            }
+        }
+    }
+
+    fun onRecordStop() {
+        // Always reset continuous mode when recording stops from any code path.
+        _isContinuousMode.value = false
+
+        // Stop the microphone - this terminates the upstream audio flow, which causes
+        // InferenceRepository to finish collecting audio and run its definitive final
+        // inference pass.  We intentionally do NOT cancel captureJob here: slow engines
+        // like Whisper can take 10-20 s to produce the Final result after audio ends,
+        // and cancelling the job before it is collected means commitFinal() is never
+        // called and no text is injected.  The job self-terminates once it collects
+        // TranscriptResult.Final (or Failure).
+        audioCaptureManager.stopCapture()
+
+        // Switch to Transcribing so the UI clearly signals "mic off, engine still working".
+        // The collect loop in onRecordStart() will transition back to Idle (and commit
+        // the text) once Final arrives.
+        if (_uiState.value is KeyboardUiState.Listening ||
+            _uiState.value is KeyboardUiState.Processing
+        ) {
+            _uiState.value = KeyboardUiState.Transcribing
+        }
+    }
+
+    /**
+     * Called when the focused text field is cleared externally - typically because the user
+     * pressed "Send" in a messaging app and the app cleared the [EditText] content.
+     *
+     * Resets [TextInjector] session state so the next recording does not try to align
+     * against stale committed-word tracking that no longer matches the now-empty field.
+     *
+     * If a recording is actively in progress ([KeyboardUiState.Listening] /
+     * [KeyboardUiState.Processing]), the capture job is cancelled and immediately restarted
+     * with a fresh audio window - so the user continues dictating from a clean slate without
+     * needing to toggle the talk button.  [isContinuousMode] is intentionally preserved so
+     * the button stays active in continuous mode across the field-clear event.
+     *
+     * If the engine is still running its final inference pass ([KeyboardUiState.Transcribing]),
+     * the job is cancelled (the result is no longer useful for the emptied field) and the
+     * UI resets to [KeyboardUiState.Idle].
+     */
+    fun onFieldCleared() {
+        Log.d(TAG, "onFieldCleared - resetting TextInjector and restarting audio if recording")
+
+        // Always clear TextInjector state - stale committedWords would cause alignment
+        // failures and potential duplication on the very next partial injection.
+        textInjector?.clear()
+
+        // Always clear suggestions — the field is empty so there is nothing to suggest or
+        // correct. This also ensures the IME window height is reset even when idle.
+        _wordSuggestions.value = emptyList()
+        _wordAtCursor.value = null
+
+        val isActivelyRecording = _uiState.value is KeyboardUiState.Listening ||
+                _uiState.value is KeyboardUiState.Processing
+        val hasInferenceRunning = _uiState.value is KeyboardUiState.Transcribing
+
+        when {
+            isActivelyRecording -> {
+                // Explicitly stop the current audio capture so the old AudioRecord
+                // stops feeding chunks into the channel buffer immediately - without
+                // this, the old capture can keep producing audio for up to one read
+                // cycle (~30 ms) after captureJob.cancel(), and those samples would
+                // end up in the new session's rolling window via the Channel.UNLIMITED
+                // buffer if the old flow hadn't been cancelled yet.
+                audioCaptureManager.stopCapture()
+                // onRecordStart() cancels the existing captureJob internally, which
+                // discards the rolling audio window, and starts a fresh one.
+                // _isContinuousMode is NOT touched so the button stays active.
+                onRecordStart()
+            }
+
+            hasInferenceRunning -> {
+                // Mic is already off but the final inference is still running.
+                // The result is no longer needed (field was just cleared), so cancel it.
+                captureJob?.cancel()
+                captureJob = null
+                _isContinuousMode.value = false
+                _uiState.value = KeyboardUiState.Idle
+            }
+            // Idle / Error / Loading - TextInjector clear above is sufficient.
+        }
+    }
+
+    /**
+     * Commits any in-progress composing (partial) text as final, then cancels the capture job
+     * immediately. Must be called **before** [setTextInjector] is set to null so that the
+     * [android.view.inputmethod.InputConnection] is still valid when we write the final text.
+     */
+    fun commitPartialAndStop() {
+        val currentState = _uiState.value
+        if (currentState is KeyboardUiState.Processing && currentState.partial.isNotEmpty()) {
+            // Commit the last partial transcript so no text is lost on app-switch.
+            textInjector?.commitFinal(currentState.partial)
+        } else {
+            // Transcribing (no partial yet) or any other state - remove any composing span
+            // without committing. If the engine was still running its final pass it will be
+            // cancelled; that partial audio is lost, which is acceptable on input-field change.
+            textInjector?.clear()
+        }
+        // Cancel the capture coroutine immediately - don't wait for the audio loop to drain.
+        captureJob?.cancel()
+        captureJob = null
+        _isContinuousMode.value = false
+        audioCaptureManager.stopCapture()
+        _uiState.value = KeyboardUiState.Idle
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        captureJob?.cancel()
+        _isContinuousMode.value = false
+        textInjector = null
+        inferenceRepository = null
+    }
+
+    class Factory(
+        private val audioCaptureManager: AudioCaptureManager,
+        private val appPreferences: AppPreferences,
+        private val wordSuggestionProvider: WordSuggestionProvider,
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T =
+            KeyboardViewModel(audioCaptureManager, appPreferences, wordSuggestionProvider) as T
+    }
+}

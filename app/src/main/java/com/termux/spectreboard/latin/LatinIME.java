@@ -547,6 +547,12 @@ public class LatinIME extends InputMethodService implements
         Log.i(TAG, "Hardware accelerated drawing: " + mIsHardwareAcceleratedDrawingEnabled);
     }
 
+    private com.termux.spectreboard.spectre.parakeet.ParakeetDictationHost parakeetHost;
+
+    public com.termux.spectreboard.spectre.parakeet.ParakeetDictationHost getParakeetHost() {
+        return parakeetHost;
+    }
+
     @Override
     public void onCreate() {
         mSettings.startListener();
@@ -564,6 +570,8 @@ public class LatinIME extends InputMethodService implements
         com.termux.spectreboard.spectre.DirectInputMode.INSTANCE.init(this);
         com.termux.spectreboard.spectre.AmdMode.INSTANCE.init(this);
         com.termux.spectreboard.spectre.CybersynControl.INSTANCE.init(this);
+        parakeetHost = new com.termux.spectreboard.spectre.parakeet.ParakeetDictationHost(this);
+        parakeetHost.bind();
         mClipboardHistoryManager.onCreate();
         mHandler.onCreate();
         if (FoldableUtils.INSTANCE.isFoldable())
@@ -858,6 +866,11 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {
         mHandler.onStartInput(editorInfo, restarting);
+        if (parakeetHost != null && getCurrentInputConnection() != null) {
+            parakeetHost.onInputStart(
+                    getCurrentInputConnection(),
+                    editorInfo != null ? editorInfo : new EditorInfo());
+        }
     }
 
     @Override
@@ -883,6 +896,9 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onFinishInput() {
         mHandler.onFinishInput();
+        if (parakeetHost != null) {
+            parakeetHost.onInputFinish();
+        }
         BackgroundGatheringCache.saveOrClear(this);
     }
 
@@ -1095,6 +1111,9 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        if (parakeetHost != null) {
+            parakeetHost.preloadIfNeeded();
+        }
         if (isInputViewShown()) {
             if (mInputView != null && Settings.getValues().mIsFloatingKeyboard)
                 FloatingKeyboardUtils.setFloating(mInputView);

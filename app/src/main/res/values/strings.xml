@@ -1308,5 +1308,13 @@ New dictionary:
      string will probably be removed once data gathering is finished (end of 2026 latest) -->
     <string name="gesture_data_swipe_o_scope">Tool for visualizing gesture data: &lt;a href=%s&gt;Swipe-O-Scope&lt;/a&gt;</string>
 
+    <!-- On-device Parakeet dictation (ported from Outspoke) -->
+    <string name="notif_channel_name">Parakeet dictation engine</string>
+    <string name="notif_channel_desc">Keeps the on-device speech engine ready while the keyboard is in use</string>
+    <string name="notif_engine_loading">Loading speech engine…</string>
+    <string name="notif_engine_ready">Speech engine ready (%1$s)</string>
+    <string name="notif_engine_failed">Speech engine failed: %1$s</string>
+    <string name="notif_model_not_downloaded">Model not installed</string>
+
     <!-- new strings should go above the section for gesture data gathering -->
 </resources>

@@ -16,6 +16,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -55,6 +57,11 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:name="android.speech"
                 android:resource="@xml/recognition_service" />
         </service>
+
+        <service android:name="com.termux.spectreboard.spectre.parakeet.InferenceService"
+                android:exported="false"
+                android:foregroundServiceType="microphone"
+                tools:targetApi="q" />
 
         <service android:name=".spellcheck.AndroidSpellCheckerService"
                  android:label="@string/spell_checker_service_name"

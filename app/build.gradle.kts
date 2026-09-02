@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.termux.spectreboard"
-        minSdk = 21
+        minSdk = 24
         targetSdk = 36
         versionCode = 4002
         versionName = "4.0-alpha2"
@@ -160,11 +160,16 @@ dependencies {
     implementation("sh.calvin.reorderable:reorderable:3.1.0") // for easier re-ordering
     implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors
 
-    // ONNX Runtime for GRU-CIFG scorer and Whisper decoder
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    // ONNX Runtime for GRU-CIFG scorer, Whisper decoder, and Parakeet-TDT dictation.
+    // Matches Outspoke exactly (1.29.0); requires minSdk 24.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.29.0")
 
     // WebSocket client for streaming dictation to comrade's sherpa-onnx server
     implementation("org.java-websocket:Java-WebSocket:1.5.7")
+
+    // On-device Parakeet dictation (ported from Outspoke): DataStore for AppPreferences.
+    // Model + suggestion files are staged by hand (no in-app download), so no OkHttp.
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
 
     // AndroidX Preference (used by CleverKeys neural engine)
     implementation("androidx.preference:preference-ktx:1.2.1")
