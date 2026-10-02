@@ -111,6 +111,7 @@ import com.termux.spectreboard.spectre.neural.NeuralGestureEngine;
 import com.termux.spectreboard.spectre.neural.GestureAbLogger;
 import com.termux.spectreboard.spectre.spatial.SpatialModelWorker;
 import com.termux.spectreboard.spectre.spatial.SpatialScorer;
+import com.termux.spectreboard.spectre.adapt.AdaptationLog;
 
 /**
  * Input method implementation for Qwerty'ish keyboard.
@@ -634,6 +635,7 @@ public class LatinIME extends InputMethodService implements
         // The neural/phonetic extras get exactly one attempt per process: retrying them
         // on a permanent failure would re-read tens of MB of assets on every subtype
         // switch, which shows up as recurring typing jank, not recovery.
+        AdaptationLog.INSTANCE.init(this);
         final boolean scorersMissing = KenLmScorer.INSTANCE.isEmpty() || GruScorer.INSTANCE.isEmpty();
         final boolean extrasPending = !sSpectreExtrasAttempted
                 && (!NeuralGestureEngine.INSTANCE.getInitialized() || !PhoneticExpander.INSTANCE.isLoaded());

@@ -39,6 +39,7 @@ import com.termux.spectreboard.latin.CorrectionHistory;
 import com.termux.spectreboard.latin.LastComposedWord;
 import com.termux.spectreboard.latin.LatinIME;
 import com.termux.spectreboard.spectre.parakeet.ParakeetDictationHost;
+import com.termux.spectreboard.spectre.adapt.AdaptationLog;
 import com.termux.spectreboard.latin.NgramContext;
 import com.termux.spectreboard.latin.RichInputConnection;
 import com.termux.spectreboard.latin.SingleDictionaryFacilitator;
@@ -1993,6 +1994,10 @@ public final class InputLogic {
         if (!TextUtils.isEmpty(committedWord)) {
             unlearnWord(committedWordString, inputTransaction.getSettingsValues(),
                     Constants.EVENT_REVERT);
+            if (!inputTransaction.getSettingsValues().mIncognitoModeEnabled) {
+                AdaptationLog.INSTANCE.logRevert(originallyTypedWord.toString(), committedWordString,
+                        mLastComposedWord.mNgramContext);
+            }
         }
         final String stringToCommit = originallyTypedWord +
                 (usePhantomSpace ? "" : separatorString);
@@ -2522,8 +2527,13 @@ public final class InputLogic {
         // what user typed. Note: currently this is done much later in
         // LastComposedWord#didCommitTypedWord by string equality of the remembered
         // strings.
+        final boolean wasBatchMode = mWordComposer.isBatchMode();
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
         mCorrectionHistory.push(mLastComposedWord);
+        if (!settingsValues.mIncognitoModeEnabled) {
+            AdaptationLog.INSTANCE.logCommit(commitType, mLastComposedWord.mTypedWord, chosenWord,
+                    separatorString, ngramContext, wasBatchMode);
+        }
 
         // Log override events for future model retraining
         if (commitType == LastComposedWord.COMMIT_TYPE_MANUAL_PICK

@@ -81,3 +81,60 @@ existing `StreamDictation`/comrade-Whisper toolbar-mic path stays as-is. This
 is a new, separate on-device engine, likely wired to a different toolbar key
 or toggle initially, so the working comrade path is never put at risk while
 this is being built out.
+
+---
+
+# Personal adaptation pipeline — scope
+
+Separate subsystem from the Parakeet entry above, recorded in the same file
+(same append-only rule applies).
+
+## 2026-10-02 — Initial scope
+
+**Why:** single-user keyboard on owned hardware, so none of the commercial
+constraints (federated learning, differential privacy, frozen base models)
+apply. Idea came from the user probing it with Gemini; reviewed against the
+real code before agreeing. Goal: autocorrect that learns from the user's own
+typing and corrections via an offline loop on comrade (GPU/CPU there, not the
+phone), with trained artifacts pushed back to the device.
+
+**Agreed decisions:**
+
+1. **Step 0/1 — persist training signal first.** Before this, the only
+   signal was `Log.i("CorrectionOverride", …)` in `InputLogic.commitChosenWord`
+   (logcat ring buffer, effectively nothing retained) and the write-only
+   `CorrectionHistory` (8 entries, never read). Persist to app storage:
+   - manual picks from the strip (typed X → picked Y),
+   - **backspace reverts of an autocorrect** (strongest negative label),
+   - accepted autocorrects / typed-word commits (weak positive + the
+     committed-text stream that becomes the personal corpus),
+   - with n-gram context, and the per-candidate scorer features at commit
+     time (dict / GRU / KenLM / spatial) so the reranker can be trained
+     offline without re-deriving them.
+   - Skip password / no-learning fields (reuse `mIncognitoModeEnabled`).
+     Not for privacy — they're noise.
+   - Pulled to comrade over Tailscale.
+2. **Step 2 — nightly KenLM rebuild on comrade** from base corpus
+   (`corpus_for_gru.txt`) + personal committed text, quantized like
+   `spectre_q8.blm`, gated by a held-out eval, pushed to the DE path
+   (`/data/user_de/0/com.termux.spectreboard/files/`, chmod 644) with a
+   reload mechanism (scorers currently load once per IME process).
+3. **Step 3 — learned reranker weights.** Pick/revert pairs are *ranking*
+   decisions, so they train a small model over the four scorer features to
+   replace the fixed lexicographic order in `Suggest.rerankCombined()`
+   (dict band → GRU → KenLM → spatial). Not DPO on the GRU (too few pairs/day,
+   overfits).
+4. **Step 4 — spatial label hygiene.** `SpatialModelWorker` already rebuilds
+   per-key Gaussians from GESTURE_DATA; fix is excluding taps from reverted
+   (mislabelled) words, not faster updates.
+5. **Step 5 — occasional GRU continued training** on personal + base text
+   mix. Lowest priority.
+
+**Hard constraints:**
+- **Every rebuilt artifact must beat the current one on a held-out slice of
+  the user's own typing before it's pushed.** Learning from accepted
+  autocorrects is a self-reinforcing loop; the eval gate + revert signal are
+  what stop it drifting.
+- **Personally-trained models never go to the public repo or the public HF
+  repo `marx161-cmd/spectreboard-models`** — n-gram/LM models memorise exact
+  strings. Base models there stay as-is.

@@ -11,6 +11,7 @@ import com.android.inputmethod.latin.utils.BinaryDictionaryUtils
 import com.termux.spectreboard.keyboard.Keyboard
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.getEmojiDefaultVersion
 import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
+import com.termux.spectreboard.spectre.adapt.AdaptationLog
 import com.termux.spectreboard.latin.common.ComposedData
 import com.termux.spectreboard.latin.common.Constants
 import com.termux.spectreboard.latin.common.InputPointers
@@ -556,6 +557,8 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
         if (spatialScores == null && kenScores == null && gruScores == null) return
 
         suggestions.sortWith(CombinedComparator(spatialScores, kenScores, gruScores))
+        AdaptationLog.recordFeatures(suggestions, ngramContext, composedData.mIsBatchMode,
+            spatialScores, kenScores, gruScores)
     }
 
     private class CombinedComparator(
