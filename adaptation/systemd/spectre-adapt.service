@@ -1,0 +1,10 @@
+[Unit]
+Description=SpectreBoard nightly KenLM adaptation (pull, rebuild, gate, push)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/kenlm/nightly_adapt.py
+StandardOutput=append:%h/kenlm/rebuild/nightly.log
+StandardError=append:%h/kenlm/rebuild/nightly.log
+Nice=10
