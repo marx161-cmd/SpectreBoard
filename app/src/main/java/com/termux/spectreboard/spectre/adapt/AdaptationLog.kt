@@ -28,7 +28,7 @@ import java.util.concurrent.Executors
  *  - `revert`: backspace undid an autocorrect (committed → typed). Join offline with the
  *    preceding `commit` event of the same pair.
  *
- * Callers must skip incognito/password fields (SettingsValues.mIncognitoModeEnabled).
+ * Logs everything, including incognito/password fields (single-user device; scope.md 2026-10-02).
  */
 object AdaptationLog {
     private const val TAG = "AdaptationLog"

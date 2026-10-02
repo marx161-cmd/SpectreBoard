@@ -1994,10 +1994,8 @@ public final class InputLogic {
         if (!TextUtils.isEmpty(committedWord)) {
             unlearnWord(committedWordString, inputTransaction.getSettingsValues(),
                     Constants.EVENT_REVERT);
-            if (!inputTransaction.getSettingsValues().mIncognitoModeEnabled) {
-                AdaptationLog.INSTANCE.logRevert(originallyTypedWord.toString(), committedWordString,
-                        mLastComposedWord.mNgramContext);
-            }
+            AdaptationLog.INSTANCE.logRevert(originallyTypedWord.toString(), committedWordString,
+                    mLastComposedWord.mNgramContext);
         }
         final String stringToCommit = originallyTypedWord +
                 (usePhantomSpace ? "" : separatorString);
@@ -2530,10 +2528,8 @@ public final class InputLogic {
         final boolean wasBatchMode = mWordComposer.isBatchMode();
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
         mCorrectionHistory.push(mLastComposedWord);
-        if (!settingsValues.mIncognitoModeEnabled) {
-            AdaptationLog.INSTANCE.logCommit(commitType, mLastComposedWord.mTypedWord, chosenWord,
-                    separatorString, ngramContext, wasBatchMode);
-        }
+        AdaptationLog.INSTANCE.logCommit(commitType, mLastComposedWord.mTypedWord, chosenWord,
+                separatorString, ngramContext, wasBatchMode);
 
         // Log override events for future model retraining
         if (commitType == LastComposedWord.COMMIT_TYPE_MANUAL_PICK

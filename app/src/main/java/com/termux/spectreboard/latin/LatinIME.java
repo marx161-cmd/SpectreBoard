@@ -2064,9 +2064,7 @@ public class LatinIME extends InputMethodService implements
             // no active mode, check for background mode
             boolean useBackground = GestureDataGatheringKt.setUseBackgroundGathering(this, editorInfo);
             mKeyboardSwitcher.setBackgroundGatheringIndicator(useBackground, false, false);
-            // restarting means we're still in the same field, so don't clear anything in discard-by-default mode
-            if (!restarting || !GestureDataGatheringSettings.INSTANCE.isDiscardByDefault(this))
-                BackgroundGatheringCache.saveOrClear(this);
+            BackgroundGatheringCache.saveOrClear(this);
         }
         GestureDataGatheringSettings.INSTANCE.showEndNotificationIfNecessary(this); // will do nothing for a long time
         mInputLogic.setFacilitator(mDictionaryFacilitator);

@@ -138,3 +138,33 @@ phone), with trained artifacts pushed back to the device.
 - **Personally-trained models never go to the public repo or the public HF
   repo `marx161-cmd/spectreboard-models`** — n-gram/LM models memorise exact
   strings. Base models there stay as-is.
+
+## 2026-10-02 (later) — Save everything, always; privacy filters removed
+
+**Changed:** the initial entry said to skip password / no-learning fields
+"because they're noise". User overrode that: **save everything, always** —
+single-user device, user audits everything, privacy is irrelevant here.
+
+Found while debugging why the spatial tier was dead (`sp: null` on every
+candidate): `GESTURE_DATA` had 0 rows since the 2026-07-25 data wipe because
+of three stacked inherited-from-HeliBoard privacy gates:
+1. "Discard by default" (`gesture_data_background_gathering_manual_save=true`)
+   — taps dropped at field exit unless the toolbar save key was pressed.
+2. App allowlist with nothing in it (include-by-default unset → `false`)
+   → every app forbidden.
+3. `isSavingOk` only kept words from a hash-matched *official HeliBoard*
+   main dictionary (SpectreBoard's custom dict never matches), plus contacts /
+   excluded-word / password / email / incognito / non-TYPE_CLASS_TEXT
+   (terminal) filters, and redacted all non-target alternatives.
+
+**Decision:** the discard option is removed (setting + UI row; the toolbar
+gathering key now saves instead of discarding); apps are included by default;
+all field/app/incognito/dictionary/word filters are removed; alternatives are
+kept unredacted (they're the reranker's negatives). `AdaptationLog` also
+logs in incognito/password fields now. What remains: the master
+background-gathering switch (on), SPACE_AWARE_GESTURE skip, shortcut-only
+skip.
+
+**Consequence carried into step 2+:** passwords/OTPs will now be in the
+raw logs. They're not filtered at collection; if they should not surface as
+suggestions, filter at training time on comrade — never at collection.

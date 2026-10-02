@@ -55,9 +55,6 @@ object BackgroundGatheringCache {
     private fun maybeFlushOldestToDisk() {
         val context = appContext ?: return
         if (cachedWords.size <= FLUSH_THRESHOLD) return
-        // In discard-by-default mode the user decides at session end whether data is kept;
-        // an early flush would save what they meant to discard, so keep it in RAM there.
-        if (GestureDataGatheringSettings.isDiscardByDefault(context)) return
         val flushCount = cachedWords.size - KEEP_RECENT
         val toFlush = ArrayList(cachedWords.subList(0, flushCount))
         cachedWords.subList(0, flushCount).clear()
@@ -166,7 +163,7 @@ object BackgroundGatheringCache {
 
     @JvmStatic
     fun saveOrClear(context: Context) {
-        if (useBackgroundGathering && !GestureDataGatheringSettings.isDiscardByDefault(context))
+        if (useBackgroundGathering)
             save(context)
         else clear()
     }
@@ -204,13 +201,8 @@ fun setUseBackgroundGathering(context: Context, editorInfo: EditorInfo): Boolean
 private fun isBackgroundGatheringUsed(context: Context, editorInfo: EditorInfo): Boolean {
     if (!JniUtils.sHaveGestureLib) return false
     if (!GestureDataGatheringSettings.isBackgroundGatheringEnabled(context.prefs())) return false
-    if (Settings.getValues().mIncognitoModeEnabled) return false
-    val inputAttributes = InputAttributes(editorInfo, false, "")
-    if (inputAttributes.mInputType and InputType.TYPE_CLASS_TEXT == 0)
-        return false // undefined (e.g. terminal apps) type should work, but will likely not allow to track corrections
-    val isEmailField = InputTypeUtils.isEmailVariation(inputAttributes.mInputType and InputType.TYPE_MASK_VARIATION)
-    if (inputAttributes.mIsPasswordField || inputAttributes.mNoLearning || isEmailField) return false
-    if (GestureDataGatheringSettings.isForbiddenForDataGathering(editorInfo.packageName, context)) return false
+    // No field/app/incognito filtering: single-user device, everything is training data
+    // (scope.md, personal adaptation pipeline, 2026-10-02).
     if (editorInfo.privateImeOptions == "noBackground") return false // meant for review screen
     // we might not have a known dictionary, they are informed about this when enabling background gathering
     return true
@@ -317,22 +309,8 @@ class WordData(
                 continue
             if (word.mOriginalScore < 0 && filteredSuggestions.size > 5)
                 continue // no need to add bad matches
-            if (activeMode) {
-                filteredSuggestions.add(word)
-                continue
-            }
-            if (word.mWord in blockedWords)
-                continue // we should never come here, but better check twice
+            // No word blocking or redaction: alternatives are training negatives (scope.md, 2026-10-02).
             filteredSuggestions.add(word)
-            if (word.mWord == (targetWord ?: topSuggestion?.word))
-                break // no use for suggestions after that
-        }
-        // redact words that don't match the top suggestion / target word
-        if (!activeMode) {
-            for (i in filteredSuggestions.indices) {
-                if (filteredSuggestions[i].mWord != (targetWord ?: topSuggestion?.word))
-                    filteredSuggestions[i] = filteredSuggestions[i].redact()
-            }
         }
         return filteredSuggestions
     }
@@ -344,32 +322,15 @@ class WordData(
         if (activeMode)
             // active mode should be fine, the check is just an addition in case there is a bug that sets the wrong mode or dictionary facilitator
             return suggestions.all { it.mSourceDict == suggestions.first().mSourceDict }
-        if (Settings.getValues().mIncognitoModeEnabled)
-            return false // don't save in incognito mode
         if (!GestureDataGatheringSettings.isBackgroundGatheringEnabled(context.prefs()))
             return false
         if ((targetWord ?: topSuggestion?.word)?.contains(' ') == true) // no support for SPACE_AWARE_GESTURE
             return false
-        if (GestureDataGatheringSettings.isForbiddenForDataGathering(packageName, context))
-            return false // package ignored (we should never come here for blocked apps, but better be safe)
-        val inputAttributes = InputAttributes(editorInfo, false, "")
-        val isEmailField = InputTypeUtils.isEmailVariation(inputAttributes.mInputType and InputType.TYPE_MASK_VARIATION)
-        if (inputAttributes.mIsPasswordField || inputAttributes.mNoLearning || isEmailField)
-            return false // background gathering should not even be enabled, but better have this backup
-
+        // No privacy filtering (incognito/password/email/app/contacts/known-dict/excluded words):
+        // single-user device, everything is training data (scope.md, 2026-10-02).
         val matchingSuggestions = suggestions.filter { it.mWord.equals(targetWord ?: topSuggestion?.word, true) }
-        if (matchingSuggestions.all { (it.mKindAndFlags and 0xFF) == KIND_SHORTCUT })
+        if (matchingSuggestions.isNotEmpty() && matchingSuggestions.all { (it.mKindAndFlags and 0xFF) == KIND_SHORTCUT })
             return false // we want at least one non-shortcut
-
-        // word and dict-based filtering
-        if (matchingSuggestions.none { it.isFromKnownMainDict(context) })
-            return false // we have no use if not in main dictionary, also potentially sensitive
-        if (matchingSuggestions.any { it.mSourceDict.mDictType == Dictionary.TYPE_CONTACTS })
-            return false // if there is a suggestion from contacts -> never use it
-        val ignoreWords = GestureDataGatheringSettings.getWordExclusions(context)
-        // don't store if target word / first suggestion is blocked, the other suggestions will get redacted anyway
-        if ((targetWord ?: topSuggestion?.mWord) in ignoreWords)
-            return false
         return true
     }
 

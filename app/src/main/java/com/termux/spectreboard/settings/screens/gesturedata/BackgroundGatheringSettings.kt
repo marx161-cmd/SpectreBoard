@@ -97,7 +97,6 @@ import kotlin.text.split
 fun BackgroundGatheringSettings() {
     val ctx = LocalContext.current
     var backgroundGathering by remember { mutableStateOf(GestureDataGatheringSettings.isBackgroundGatheringEnabled(ctx.prefs())) }
-    var backgroundGatheringManuelSave by remember { mutableStateOf(GestureDataGatheringSettings.isDiscardByDefault(ctx)) }
     var showInfoDialog by remember { mutableStateOf(false) }
     var showExcludedWordsDialog by remember { mutableStateOf(false) }
     var showIncludedAppsDialog by remember { mutableStateOf(false) }
@@ -135,19 +134,6 @@ fun BackgroundGatheringSettings() {
                 GestureDataGatheringSettings.setBackgroundGatheringEnabled(ctx.prefs(), it)
             }
         )
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier
-            .clickable { backgroundGatheringManuelSave = !backgroundGatheringManuelSave }
-            .fillMaxWidth()
-    ) {
-        Column {
-            Text(stringResource(R.string.gesture_data_background_gathering_manual_save))
-            Text(stringResource(R.string.gesture_data_background_gathering_manual_save_summary), style = MaterialTheme.typography.bodySmall)
-        }
-        Switch(backgroundGatheringManuelSave, { backgroundGatheringManuelSave = it; GestureDataGatheringSettings.setDiscardByDefault(ctx, it) })
     }
     ButtonWithText(stringResource(R.string.gesture_data_background_gathering_info), Modifier.fillMaxWidth()) { showInfoDialog = true }
     ButtonWithText(stringResource(R.string.gesture_data_background_excluded_words_button), Modifier.fillMaxWidth()) { showExcludedWordsDialog = true }
