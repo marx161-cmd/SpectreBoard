@@ -55,6 +55,18 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
     // Stored batch alternatives for post-swipe mixed suggestions
     private var lastBatchAlternatives: List<SuggestedWordInfo> = emptyList()
 
+    // Tap typing reruns suggestions on every keystroke, so only the latest state of the composing
+    // word is held here; InputLogic hands it to the gathering cache once the word is committed.
+    @Volatile private var pendingTypingWordData: WordData? = null
+
+    fun flushTypingWordData(typedWord: String?, committedWord: String) {
+        val wordData = pendingTypingWordData ?: return
+        pendingTypingWordData = null
+        if (wordData.composedData.mTypedWord != typedWord) return // stale: not the word just committed
+        wordData.targetWord = committedWord
+        BackgroundGatheringCache.addWord(wordData)
+    }
+
     // cache cleared whenever LatinIME.loadSettings is called, notably on changing layout and switching input fields
     fun clearNextWordSuggestionsCache() = nextWordSuggestionsCache.clear()
 
@@ -248,6 +260,10 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             }
         }
         val isTypedWordValid = firstOccurrenceOfTypedWordInSuggestions > -1 || (!resultsArePredictions && !allowsToBeAutoCorrected)
+        if (useBackgroundGathering && inputStyle == SuggestedWords.INPUT_STYLE_TYPING && typedWordString.isNotEmpty()) {
+            pendingTypingWordData = WordData(null, suggestionResults, wordComposer.composedDataSnapshot,
+                ngramContext, keyboard, inputStyle, false, suggestionsList.firstOrNull())
+        }
         return SuggestedWords(suggestionsList, suggestionResults.mRawSuggestions, typedWordInfo,
             isTypedWordValid, hasAutoCorrection || correctToCapitalizedWord, false, inputStyle, sequenceNumber)
     }

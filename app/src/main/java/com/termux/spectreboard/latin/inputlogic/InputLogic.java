@@ -1996,6 +1996,7 @@ public final class InputLogic {
                     Constants.EVENT_REVERT);
             AdaptationLog.INSTANCE.logRevert(originallyTypedWord.toString(), committedWordString,
                     mLastComposedWord.mNgramContext);
+            BackgroundGatheringCache.INSTANCE.onRevertCommit(committedWordString, originallyTypedWord.toString());
         }
         final String stringToCommit = originallyTypedWord +
                 (usePhantomSpace ? "" : separatorString);
@@ -2530,6 +2531,9 @@ public final class InputLogic {
         mCorrectionHistory.push(mLastComposedWord);
         AdaptationLog.INSTANCE.logCommit(commitType, mLastComposedWord.mTypedWord, chosenWord,
                 separatorString, ngramContext, wasBatchMode);
+        if (!wasBatchMode) {
+            mSuggest.flushTypingWordData(mLastComposedWord.mTypedWord, chosenWord);
+        }
 
         // Log override events for future model retraining
         if (commitType == LastComposedWord.COMMIT_TYPE_MANUAL_PICK

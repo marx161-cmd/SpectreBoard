@@ -111,6 +111,13 @@ object BackgroundGatheringCache {
         if (DEBUG) Log.i(TAG, "picked ${word.targetWord} instead of $originalWord")
     }
 
+    // Backspace reverted an autocorrect: the taps spelled the typed word, so relabel the tap row.
+    fun onRevertCommit(committedWord: String, typedWord: String) {
+        val last = cachedWords.lastOrNull() ?: return
+        if (last.inputStyle != SuggestedWords.INPUT_STYLE_TYPING || last.targetWord != committedWord) return
+        last.targetWord = typedWord
+    }
+
     fun onRejectedSuggestion(suggestion: String) {
         if (DEBUG) Log.i(TAG, "rejected $suggestion")
         if (cachedWords.lastOrNull()?.topSuggestion?.word?.equals(suggestion, true) != true) {
