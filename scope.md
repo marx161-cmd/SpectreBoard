@@ -168,3 +168,15 @@ skip.
 **Consequence carried into step 2+:** passwords/OTPs will now be in the
 raw logs. They're not filtered at collection; if they should not surface as
 suggestions, filter at training time on comrade — never at collection.
+
+## 2026-10-02 (evening) — KenLM v2 live; emoji deliberately not modelled
+
+- KenLM is now rebuilt on comrade by `~/kenlm/kenlm_rebuild.py` from ChatGPT +
+  Gemini + Claude exports + replayed personal typing, **normalised the way the
+  phone queries it** (lowercase, punctuation split off, sentence per line). The
+  old model was trained on raw cased text with punctuation attached, which
+  `KenLmScorer` (lowercased context + candidates) could never match.
+  `spectre_v2_q8.blm` pushed 15:56 via tmp+rename hot-reload (c04120bd).
+- The normaliser keeps only letters/digits/internal apostrophes, so **emoji are
+  not in the model**. User decision: that's fine — emoji suggestions aren't
+  wanted from KenLM. Don't "fix" this; the nightly rebuild may keep dropping them.
