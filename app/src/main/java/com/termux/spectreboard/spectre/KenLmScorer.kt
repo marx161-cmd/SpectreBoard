@@ -2,6 +2,8 @@
 package com.termux.spectreboard.spectre
 
 import android.content.Context
+import android.os.FileObserver
+import android.util.Log
 import com.termux.spectreboard.latin.NgramContext
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -16,7 +18,13 @@ object KenLmScorer {
 
     private const val BEGINNING_OF_SENTENCE_TAG = "<S>"
 
+    private const val TAG = "KenLmScorer"
     private const val MODEL_FILENAME = "spectre_q8.blm"
+
+    // Hot-reload: comrade's rebuild pushes a new model to a temp name and renames it over
+    // MODEL_FILENAME (MOVED_TO), so a half-written file is never loaded. Strong ref: an
+    // unreferenced FileObserver stops when collected.
+    private var modelObserver: FileObserver? = null
 
     private val lock = Any()
     @Volatile private var loaded = false
@@ -60,9 +68,31 @@ object KenLmScorer {
             val modelPath = "${context.filesDir.absolutePath}/$MODEL_FILENAME"
             val ok = initNative(modelPath)
             synchronized(lock) { loaded = ok }
+            watchModel(context.filesDir.absolutePath, modelPath)
         } finally {
             loading.set(false)
         }
+    }
+
+    private fun watchModel(dir: String, modelPath: String) {
+        if (modelObserver != null) return
+        @Suppress("DEPRECATION") // File-based constructor is API 29+, minSdk is 24
+        modelObserver = object : FileObserver(dir, MOVED_TO or CLOSE_WRITE) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != MODEL_FILENAME) return
+                reload(modelPath)
+            }
+        }.also { it.startWatching() }
+    }
+
+    private fun reload(modelPath: String) {
+        if (!nativeAvailable) return
+        val ok = synchronized(lock) {
+            if (loaded) closeNative()
+            loaded = false
+            initNative(modelPath).also { loaded = it }
+        }
+        Log.i(TAG, "model reloaded from $modelPath: ok=$ok")
     }
 
     fun stop() = synchronized(lock) {
