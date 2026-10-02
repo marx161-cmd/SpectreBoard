@@ -1995,7 +1995,7 @@ public final class InputLogic {
             unlearnWord(committedWordString, inputTransaction.getSettingsValues(),
                     Constants.EVENT_REVERT);
             AdaptationLog.INSTANCE.logRevert(originallyTypedWord.toString(), committedWordString,
-                    mLastComposedWord.mNgramContext);
+                    mLastComposedWord.mNgramContext, inputTransaction.getSettingsValues().mInputAttributes);
             BackgroundGatheringCache.INSTANCE.onRevertCommit(committedWordString, originallyTypedWord.toString());
         }
         final String stringToCommit = originallyTypedWord +
@@ -2530,7 +2530,7 @@ public final class InputLogic {
         mLastComposedWord = mWordComposer.commitWord(commitType, chosenWord, separatorString, ngramContext);
         mCorrectionHistory.push(mLastComposedWord);
         AdaptationLog.INSTANCE.logCommit(commitType, mLastComposedWord.mTypedWord, chosenWord,
-                separatorString, ngramContext, wasBatchMode);
+                separatorString, ngramContext, wasBatchMode, settingsValues.mInputAttributes);
         if (!wasBatchMode) {
             mSuggest.flushTypingWordData(mLastComposedWord.mTypedWord, chosenWord);
         }

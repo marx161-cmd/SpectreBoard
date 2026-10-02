@@ -2,6 +2,7 @@ package com.termux.spectreboard.spectre.adapt
 
 import android.content.Context
 import android.util.Log
+import com.termux.spectreboard.latin.InputAttributes
 import com.termux.spectreboard.latin.NgramContext
 import com.termux.spectreboard.latin.SuggestedWords.SuggestedWordInfo
 import org.json.JSONArray
@@ -29,6 +30,8 @@ import java.util.concurrent.Executors
  *    preceding `commit` event of the same pair.
  *
  * Logs everything, including incognito/password fields (single-user device; scope.md 2026-10-02).
+ * Each event carries the field it was typed in (pkg, raw inputType, password/no-learning flags)
+ * so comrade can filter e.g. passwords/OTPs out of training text without dropping them here.
  */
 object AdaptationLog {
     private const val TAG = "AdaptationLog"
@@ -84,7 +87,8 @@ object AdaptationLog {
         committed: String,
         separator: String?,
         ngramContext: NgramContext,
-        batch: Boolean
+        batch: Boolean,
+        field: InputAttributes?
     ) {
         if (dir == null) return
         val ctx = ngramContext.extractPrevWordsContext()
@@ -104,6 +108,7 @@ object AdaptationLog {
             .put("sep", separator ?: "")
             .put("ctx", ctx)
             .put("batch", batch)
+        putField(ev, field)
         if (features != null) {
             val arr = JSONArray()
             for (r in features.rows) {
@@ -120,14 +125,24 @@ object AdaptationLog {
         append(ev)
     }
 
-    fun logRevert(typed: String, committed: String, ngramContext: NgramContext) {
+    fun logRevert(typed: String, committed: String, ngramContext: NgramContext, field: InputAttributes?) {
         if (dir == null) return
-        append(JSONObject()
+        val ev = JSONObject()
             .put("ev", "revert")
             .put("t", System.currentTimeMillis())
             .put("typed", typed)
             .put("committed", committed)
-            .put("ctx", ngramContext.extractPrevWordsContext()))
+            .put("ctx", ngramContext.extractPrevWordsContext())
+        putField(ev, field)
+        append(ev)
+    }
+
+    private fun putField(ev: JSONObject, field: InputAttributes?) {
+        if (field == null) return
+        ev.put("pkg", field.mTargetApplicationPackageName ?: "")
+            .put("itype", field.mInputType)
+            .put("pw", field.mIsPasswordField)
+            .put("nolearn", field.mNoLearning)
     }
 
     private fun commitTypeName(type: Int): String = when (type) {
