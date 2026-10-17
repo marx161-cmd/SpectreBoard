@@ -236,3 +236,26 @@ normal mic button. Each step is stoppable.
 **Open:** what happens to the Parakeet code in `spectre/parakeet/` and to
 the old `StreamDictation` / :8770 path. Not decided; leave them in place
 until the new path works.
+
+## 2026-10-17 (later) — Transport changed: ssh pipe instead of HTTP
+
+**Changed:** "plain HTTP over Tailscale" from the entry above is replaced by
+the user's suggestion: **pipe each piece over ssh**. SpectreBoard shares
+Termux's UID, so it can run Termux's own `ssh` with the existing key. Phone to
+comrade ssh was verified working 2026-10-17, at 0.9 s for a fresh connection.
+- One ssh connection per recording, kept open with ControlMaster, so only the
+  first piece pays the setup cost.
+- Per piece: the audio goes to stdin of a small comrade script, and the text
+  comes back on stdout.
+- Comrade keeps one text file per recording ID. It supplies the context
+  prompt and makes retries idempotent, because a repeated sequence number
+  returns the saved text.
+- `whisper-server` (turbo, iGPU) stays resident on comrade, bound to
+  **127.0.0.1 only**. ssh is the only way in, so no new network listener.
+- Verified 2026-10-17: whisper-server on `-dev 1` with turbo did a 45 s clip
+  in 4.6 s and accepted the `prompt` field. Its plain-text reply wraps lines
+  mid-word, so the script must use the JSON reply and join the segments.
+
+Everything else in the entry above stands: Opus, pieces cut at pauses near
+25 s, context limited to the last sentence or two, text typed once at the
+end as plain committed text, nothing lost.
