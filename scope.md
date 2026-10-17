@@ -343,3 +343,13 @@ Parakeet, so it never lit during Parakeet dictation.
 User OK on the clipboard fallback (field changed, typing failed, or recovered
 recording -> clipboard + toast). Dictation is verified working, so the work
 is pushed to GitHub.
+
+## 2026-10-18 — Megaphone read-aloud key (user-verified, incl. Termux)
+
+The unused **Split** toolbar slot is repurposed as a megaphone (`KeyCode.READ_ALOUD`
+-10064, icon `sym_keyboard_megaphone`). The user's design: one tap injects
+Android's `KEYCODE_COPY` via root `input keyevent`, waits 250 ms, then sends the
+clipboard to UDTTSR's `ReadAloudService`. That streams it through `textclean.py`
+and Kokoro on comrade over ssh. A tap while reading stops it. KEYCODE_COPY was
+chosen over Ctrl+C because Ctrl+C would SIGINT in Termux. The user confirmed
+it works in Termux too. Split keyboard itself remains in settings.
