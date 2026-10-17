@@ -337,3 +337,9 @@ Parakeet, so it never lit during Parakeet dictation.
   ("23s · 2 pieces done"). It's for judging Whisper's 30 s window by eye. The
   cycle is a plain timer and does not reset when a piece is cut.
 - Still open: the user's OK on the clipboard fallback (previous entry).
+
+## 2026-10-17 (23:50) — Clipboard fallback approved
+
+User OK on the clipboard fallback (field changed, typing failed, or recovered
+recording -> clipboard + toast). Dictation is verified working, so the work
+is pushed to GitHub.
