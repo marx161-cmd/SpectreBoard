@@ -619,27 +619,56 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     /**
-     * Megaphone toolbar key (2026-10-18): send the selected text to UDTTSR's read-aloud
-     * service, which streams it through Kokoro on comrade. Same Android UID, so the
-     * non-exported service is reachable. Nothing selected = stop the current reading.
+     * Megaphone toolbar key (2026-10-18, user's design): press Copy for the user, then read
+     * whatever is on the clipboard via UDTTSR's read-aloud service (Kokoro on comrade). One tap.
+     *  - Android's dedicated KEYCODE_COPY is injected with root `input keyevent`, so it
+     *    reaches the focused app's selection, not only this keyboard's own field. (Not Ctrl+C:
+     *    in Termux that would SIGINT the running process.)
+     *  - If the app doesn't copy, whatever is already on the clipboard is read.
+     *  - Tapping while a reading is playing stops it instead.
+     * UDTTSR shares this app's UID, so its non-exported service is reachable.
      */
     private fun readSelectionAloud() {
-        val selected = try {
-            latinIME.currentInputConnection?.getSelectedText(0)?.toString()
-        } catch (_: Exception) { null }
-        val intent = Intent().setClassName("com.termux.udttsr", "com.termux.udttsr.ReadAloudService")
-        try {
-            if (selected.isNullOrBlank()) {
-                latinIME.startService(intent.setAction("com.termux.udttsr.READ_ALOUD_STOP"))
-                android.widget.Toast.makeText(latinIME, "Nothing selected — reading stopped", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                latinIME.startForegroundService(intent.putExtra("text", selected))
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("ReadAloudKey", "couldn't reach UDTTSR read-aloud", e)
-            android.widget.Toast.makeText(latinIME, "Read-aloud (UDTTSR) unavailable", android.widget.Toast.LENGTH_SHORT).show()
+        val ctx = latinIME
+        val service = Intent().setClassName("com.termux.udttsr", "com.termux.udttsr.ReadAloudService")
+        if (isReadAloudPlaying(ctx)) {
+            try { ctx.startService(service.setAction("com.termux.udttsr.READ_ALOUD_STOP")) } catch (_: Exception) {}
+            return
         }
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            try {
+                ProcessBuilder("su", "-c", "input keyevent KEYCODE_COPY")
+                    .redirectErrorStream(true).start()
+                    .waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+            } catch (e: Exception) { android.util.Log.w("ReadAloudKey", "Copy key injection failed", e) }
+            Thread.sleep(250)                      // let the app put the copy on the clipboard
+            main.post {
+                val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+                val text = try {
+                    cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString()
+                } catch (_: Exception) { null }
+                if (text.isNullOrBlank()) {
+                    android.widget.Toast.makeText(ctx, "Nothing to read — clipboard is empty", android.widget.Toast.LENGTH_SHORT).show()
+                    return@post
+                }
+                try {
+                    ctx.startForegroundService(service.putExtra("text", text))
+                } catch (e: Exception) {
+                    android.util.Log.e("ReadAloudKey", "couldn't reach UDTTSR read-aloud", e)
+                    android.widget.Toast.makeText(ctx, "Read-aloud (UDTTSR) unavailable", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.apply { name = "read-aloud-key"; isDaemon = true; start() }
     }
+
+    @Suppress("DEPRECATION") // getRunningServices still reports same-UID services, which UDTTSR is
+    private fun isReadAloudPlaying(ctx: android.content.Context): Boolean = try {
+        val am = ctx.getSystemService(android.app.ActivityManager::class.java)
+        am.getRunningServices(100).any {
+            it.service.className == "com.termux.udttsr.ReadAloudService" && it.foreground
+        }
+    } catch (_: Exception) { false }
 
     companion object {
         private enum class MetaPressState {
