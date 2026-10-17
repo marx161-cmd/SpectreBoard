@@ -259,3 +259,35 @@ comrade ssh was verified working 2026-10-17, at 0.9 s for a fresh connection.
 Everything else in the entry above stands: Opus, pieces cut at pauses near
 25 s, context limited to the last sentence or two, text typed once at the
 end as plain committed text, nothing lost.
+
+## 2026-10-17 (night) — Parakeet removed entirely; its plumbing is reused
+
+**Decided (user):** the Parakeet code goes completely. That's `ParakeetEngine`,
+`InferenceRepository`, the live-rewrite `TextInjector` / `TranscriptAligner`,
+the `correction/` and `model/` packages, and acoustic suggestions. It costs
+space for nothing and SpectreBoard is big enough already. This answers the
+"Open" question two entries up.
+
+**Kept and rewired to the comrade Whisper path:** the mic toggle and UI
+states (`KeyboardViewModel` / `KeyboardUiState`), the foreground
+`InferenceService` with its persistent notification and haptics, and
+`AudioCaptureManager` plus the VAD filters. The VAD supplies the pause points
+for cutting pieces near 25 s.
+
+**Constraint found:** the kept files import `InferenceRepository`,
+`TextInjector` and others directly, so the deletion can't be done on its own
+without breaking the build. **Removal and rewiring land together** in the
+phone-side step, with a new small component replacing `InferenceRepository`
+behind the same `transcribe(audio) -> Flow<TranscriptResult>` call. It emits a
+single final result and no partials.
+
+**Done now:**
+- Safety checkpoint: annotated tag `pre-parakeet-removal` on 7ad7d4d4. Restore
+  with `git checkout pre-parakeet-removal -- <path>`.
+- Phone model folder `/data/user_de/0/com.termux.spectreboard/files/models/parakeet-v3`
+  (640 MB) deleted. An identical-size copy stays on comrade at
+  `~/homelab/iree-stack/GoogleBeta/outspoke-parakeet-v3/`. The phone was at
+  97% full on /data (7.2 GB free) afterwards.
+- Until the phone-side step ships, the installed SpectreBoard's Parakeet mic
+  path has no model and won't work. That's accepted, since it was already
+  unreliable.
