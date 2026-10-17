@@ -171,6 +171,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 toggleDictation()
                 return
             }
+            KeyCode.READ_ALOUD -> {
+                readSelectionAloud()
+                return
+            }
             KeyCode.AMD_CONTROL -> {
                 try {
                     val intent = Intent("com.libremobileos.freeform.START_FREEFORM").apply {
@@ -612,6 +616,29 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             },
             onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
         )
+    }
+
+    /**
+     * Megaphone toolbar key (2026-10-18): send the selected text to UDTTSR's read-aloud
+     * service, which streams it through Kokoro on comrade. Same Android UID, so the
+     * non-exported service is reachable. Nothing selected = stop the current reading.
+     */
+    private fun readSelectionAloud() {
+        val selected = try {
+            latinIME.currentInputConnection?.getSelectedText(0)?.toString()
+        } catch (_: Exception) { null }
+        val intent = Intent().setClassName("com.termux.udttsr", "com.termux.udttsr.ReadAloudService")
+        try {
+            if (selected.isNullOrBlank()) {
+                latinIME.startService(intent.setAction("com.termux.udttsr.READ_ALOUD_STOP"))
+                android.widget.Toast.makeText(latinIME, "Nothing selected — reading stopped", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                latinIME.startForegroundService(intent.putExtra("text", selected))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ReadAloudKey", "couldn't reach UDTTSR read-aloud", e)
+            android.widget.Toast.makeText(latinIME, "Read-aloud (UDTTSR) unavailable", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     companion object {

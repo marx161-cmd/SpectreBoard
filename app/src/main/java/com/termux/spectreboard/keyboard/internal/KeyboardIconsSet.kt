@@ -154,7 +154,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FULL_RIGHT -> R.drawable.ic_to_end
                     ToolbarKey.PAGE_START -> R.drawable.ic_page_start
                     ToolbarKey.PAGE_END -> R.drawable.ic_page_end
-                    ToolbarKey.SPLIT -> R.drawable.ic_ime_switcher
+                    ToolbarKey.SPLIT -> R.drawable.sym_keyboard_megaphone // read-aloud key
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
@@ -222,7 +222,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FULL_RIGHT -> R.drawable.ic_to_end
                     ToolbarKey.PAGE_START -> R.drawable.ic_page_start
                     ToolbarKey.PAGE_END -> R.drawable.ic_page_end
-                    ToolbarKey.SPLIT -> R.drawable.ic_ime_switcher
+                    ToolbarKey.SPLIT -> R.drawable.sym_keyboard_megaphone // read-aloud key
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx
@@ -290,7 +290,7 @@ class KeyboardIconsSet private constructor() {
                     ToolbarKey.FULL_RIGHT -> R.drawable.ic_to_end_rounded
                     ToolbarKey.PAGE_START -> R.drawable.ic_page_start_rounded
                     ToolbarKey.PAGE_END -> R.drawable.ic_page_end_rounded
-                    ToolbarKey.SPLIT -> R.drawable.ic_ime_switcher
+                    ToolbarKey.SPLIT -> R.drawable.sym_keyboard_megaphone // read-aloud key
                     ToolbarKey.BACKGROUND_GATHERING -> R.drawable.ic_settings_gesture
                     ToolbarKey.EXEC_LOCAL -> R.drawable.sym_keyboard_go_lxx
                     ToolbarKey.EXEC_REMOTE -> R.drawable.sym_keyboard_send_lxx

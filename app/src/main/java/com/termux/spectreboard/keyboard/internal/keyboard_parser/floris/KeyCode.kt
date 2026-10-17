@@ -194,6 +194,7 @@ object KeyCode {
     const val CYBERSYN_RESET =               -10061
     const val CYBERSYN_GYRO =                -10062
     const val AMD_MODE =                     -10063
+    const val READ_ALOUD =                   -10064 // toolbar megaphone: selected text -> UDTTSR read-aloud (Kokoro on comrade)
 
     // i3 numpad command keys (publish to cybersyn/hid/i3 → i3-msg on comrade). A contiguous
     // range so one checkAndConvertCode entry covers them all; the command per code lives in

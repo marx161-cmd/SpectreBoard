@@ -63,7 +63,7 @@ private fun setToolbarButtonActivatedState(button: ImageButton) {
     button.isActivated = when (button.tag) {
         INCOGNITO -> button.context.prefs().getBoolean(Settings.PREF_ALWAYS_INCOGNITO_MODE, Defaults.PREF_ALWAYS_INCOGNITO_MODE)
         ONE_HANDED -> Settings.getValues().mOneHandedModeEnabled
-        SPLIT -> Settings.getValues().mIsSplitKeyboardEnabled
+        SPLIT -> false // now the read-aloud megaphone, which has no on/off state
         AUTOCORRECT -> Settings.getValues().mAutoCorrectionEnabledPerUserSettings
         BACKGROUND_GATHERING -> useBackgroundGathering
         DIRECT_INPUT -> DirectInputMode.enabled
@@ -103,7 +103,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     FULL_RIGHT -> KeyCode.MOVE_END_OF_LINE
     PAGE_START -> KeyCode.MOVE_START_OF_PAGE
     PAGE_END -> KeyCode.MOVE_END_OF_PAGE
-    SPLIT -> KeyCode.SPLIT_LAYOUT
+    SPLIT -> KeyCode.READ_ALOUD // toolbar slot repurposed 2026-10-18 (user unused it); split stays in settings
     FLOATING -> KeyCode.TOGGLE_FLOATING_WINDOW
     BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING
     EXEC_LOCAL -> KeyCode.EXEC_LOCAL
