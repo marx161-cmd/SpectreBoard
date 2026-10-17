@@ -291,3 +291,35 @@ single final result and no partials.
 - Until the phone-side step ships, the installed SpectreBoard's Parakeet mic
   path has no model and won't work. That's accepted, since it was already
   unreliable.
+
+## 2026-10-17 (late night) — Phone side built and installed (untested by voice)
+
+Implemented as `spectre/PieceDictation.kt`. The controls are taken over from
+`StreamDictation.kt`: one buzz on start, two on stop, the animated progress
+notification, and one `isRecording` flag that drives the toolbar light. The
+light used to read `StreamDictation.isRecording` while the button toggled
+Parakeet, so it never lit during Parakeet dictation.
+
+- Pieces are cut at a 300 ms pause once ~20 s long (adaptive noise floor),
+  or at the quietest point of the last 5 s if no pause comes by 30 s. A last
+  piece under 0.45 s, or all quiet, is dropped.
+- Each piece is encoded as Opus in Ogg via MediaCodec/MediaMuxer (WAV
+  fallback), saved in `cacheDir/dictation/<id>/`, and piped through Termux's
+  `ssh` (ControlMaster) to `dictate-piece`. Retries back off over ~90 s.
+- Text is typed once at the end with `commitText(text + " ")`.
+- Parakeet deleted: the `spectre/parakeet/` folder, `AcousticSuggestions`, the
+  Suggest.kt acoustic block, the InputLogic guard, the `InferenceService`
+  manifest entry, `silero_vad_v4.onnx`, the DataStore dependency and the
+  Parakeet strings.
+
+**Differences from the entries above, flagged to the user:**
+- The "N pieces done" progress shows in the **notification text**, not on the
+  keyboard itself.
+- **New behaviour I added, needs the user's OK:** if the field changed
+  between the stop tap and the text arriving, or typing fails, the text goes
+  to the **clipboard** with a toast, not into the field. A recording that
+  couldn't reach comrade is kept, and on the next dictation it's sent and its
+  text is recovered to the clipboard.
+- `StreamDictation.kt` and `SpectreRecognitionService` (old :8770 path, the
+  system voice-input service, not currently selected) are left in place,
+  unchanged.

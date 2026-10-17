@@ -58,11 +58,6 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 android:resource="@xml/recognition_service" />
         </service>
 
-        <service android:name="com.termux.spectreboard.spectre.parakeet.InferenceService"
-                android:exported="false"
-                android:foregroundServiceType="microphone"
-                tools:targetApi="q" />
-
         <service android:name=".spellcheck.AndroidSpellCheckerService"
                  android:label="@string/spell_checker_service_name"
                  android:permission="android.permission.BIND_TEXT_SERVICE"

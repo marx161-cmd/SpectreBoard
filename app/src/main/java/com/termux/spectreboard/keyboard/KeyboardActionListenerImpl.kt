@@ -22,7 +22,7 @@ import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.I3Numpad
 import com.termux.spectreboard.spectre.WhisperRecognizer
-import com.termux.spectreboard.spectre.StreamDictation
+import com.termux.spectreboard.spectre.PieceDictation
 import com.termux.spectreboard.spectre.exec.ExecutionMode
 import com.termux.spectreboard.spectre.exec.MacroManager
 import com.termux.spectreboard.spectre.exec.SpectreBoardExecutor
@@ -595,15 +595,23 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     /**
-     * Toggle streaming dictation. Server sends delta protocol:
-     *   {"type":"append","text":" word"}  — commit text (space-prefixed by server)
-     *   {"type":"final","text":"..."}     — commit trailing space
-     *   {"type":"revise","pop_chars":N,"replace_with":"..."} — surgical rewrite
+     * Toggle piece dictation (see [PieceDictation], scope.md 2026-10-17): pieces are
+     * transcribed on comrade over ssh, and the whole text arrives once at the end. It's typed
+     * with a plain commitText — never a composing region — so WordComposer, recorrection,
+     * backspace and select+replace treat it like pasted text (the 2026-09-01 fix).
      */
     private fun toggleDictation() {
-        val host = latinIME.parakeetHost ?: return
-        host.onStateChange = { latinIME.refreshToolbarButtonActivatedStates() }
-        host.onRecordToggle()
+        PieceDictation.toggle(
+            context = latinIME,
+            commit = { text ->
+                latinIME.currentInputConnection?.let { ic ->
+                    ic.beginBatchEdit()
+                    ic.commitText(text, 1)
+                    ic.endBatchEdit()
+                }
+            },
+            onStateChange = { latinIME.refreshToolbarButtonActivatedStates() },
+        )
     }
 
     companion object {
