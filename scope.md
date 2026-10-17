@@ -180,3 +180,59 @@ suggestions, filter at training time on comrade — never at collection.
 - The normaliser keeps only letters/digits/internal apostrophes, so **emoji are
   not in the model**. User decision: that's fine — emoji suggestions aren't
   wanted from KenLM. Don't "fix" this; the nightly rebuild may keep dropping them.
+
+## 2026-10-17 — Dictation redesign: chunked whole-utterance Whisper on comrade; Parakeet dropped
+
+**Changed:** the 2026-09-02 on-device Parakeet port is out. User verdict: it
+fails to do anything about half the time, in this port *and* in Outspoke
+itself. User dislikes Parakeet and explicitly does **not** want it fixed.
+Google voice typing and FUTO Voice Input were rejected as worse than Parakeet.
+The old comrade Whisper streaming path (`StreamDictation.kt` → :8770) was
+also rejected, for two reasons the user hit in real use:
+1. **Garbage text.** af_whisper cut the audio every ~3 s at VAD pauses and
+   transcribed each piece with no context. That gave doubled, dropped and
+   invented words at every join.
+2. **Lost or deleted text.** Blocks either never arrived, or arrived in a
+   state where any edit deleted them (composing-region / revise handling).
+The user also speaks for longer than Whisper's 30 s window.
+
+**Decided design (agreed with user 2026-10-17):**
+- **Phone records Opus**, the format Android records natively. Five minutes
+  of speech is under 1 MB.
+- **Chunked upload while speaking.** The phone cuts at a pause near ~25 s,
+  never mid-word, and uploads each piece immediately, so comrade transcribes
+  while the user is still talking. When the user stops, only the last piece
+  is left. The user's point: whole-file-at-the-end wastes idle time.
+- **Context carried between pieces.** Each piece is transcribed with the
+  previous text as the Whisper prompt, limited to the last sentence or two.
+  Passing everything risks error propagation and repetition loops.
+- **Text is typed once, at the end, as plain committed text.** It never goes
+  into a composing span, and no revise or delete is ever sent. Pieces collect
+  in the background. A small "N pieces done" indicator on the keyboard shows
+  progress.
+- **Nothing gets lost.** Each recording gets a unique ID and each piece a
+  sequence number. The phone keeps every piece until comrade acknowledges it,
+  and retries are idempotent: a retry returns the cached result and never
+  re-transcribes or duplicates text. If comrade is unreachable, the keyboard
+  says so and keeps the recording for a later retry.
+- **Transport:** plain HTTP over Tailscale to comrade (100.108.8.60).
+- **Model / hardware:** whisper.cpp **large-v3-turbo**
+  (`~/src/whisper.cpp/models/ggml-large-v3-turbo.bin`, sha256 matches HF) on
+  the **iGPU** (Vulkan device 1, Radeon 760M), keeping the RX 9060 XT free
+  for the shader backdrop. A whole-file test took 5.9 s for a 45 s clip, with
+  no joins and no GPU reset. The same whole-file run on the 9060 XT crashed
+  twice with Vulkan DeviceLost, and the kernel reset a compute ring each time.
+  The suspected cause is a driver timeout under backdrop load, not proven.
+  **Don't use device 0 for this without asking.**
+- **Server binary:** ffmpeg's whisper filter has no prompt option, so it
+  can't carry context. Use whisper.cpp's own `whisper-server`, built at
+  `~/src/whisper.cpp/build-vulkan` with its `prompt` field. That it can
+  target the iGPU is **not yet verified**.
+
+**Build order:** (1) this entry, (2) verify whisper-server on the iGPU with
+turbo, (3) comrade chunk service, (4) SpectreBoard phone side behind the
+normal mic button. Each step is stoppable.
+
+**Open:** what happens to the Parakeet code in `spectre/parakeet/` and to
+the old `StreamDictation` / :8770 path. Not decided; leave them in place
+until the new path works.
