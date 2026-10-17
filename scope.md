@@ -323,3 +323,17 @@ Parakeet, so it never lit during Parakeet dictation.
 - `StreamDictation.kt` and `SpectreRecognitionService` (old :8770 path, the
   system voice-input service, not currently selected) are left in place,
   unchanged.
+
+## 2026-10-17 (23:40) — User confirmed it works; notification retuned
+
+- **User verified by voice:** long rants dictate fine, and the text arrives
+  after the stop tap.
+- **Stop is now unmistakable (user ask):** after the stop tap the
+  notification switches to grey "Stopped — transcribing" with an
+  indeterminate bar until the text arrives. It used to keep the red
+  advancing bar, so it wasn't clear whether stop had registered.
+- **30 s countdown (user ask):** while recording, the bar drains from full to
+  empty over 30 s and repeats, and the text shows the seconds left
+  ("23s · 2 pieces done"). It's for judging Whisper's 30 s window by eye. The
+  cycle is a plain timer and does not reset when a piece is cut.
+- Still open: the user's OK on the clipboard fallback (previous entry).

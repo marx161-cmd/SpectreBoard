@@ -92,7 +92,6 @@ object PieceDictation {
     private var onState: (() -> Unit)? = null
     private var session: Session? = null
 
-    private var notifProgress = 0
     private val notifTick = Runnable { tickNotification() }
 
     private class Piece(val seq: Int, val file: File)
@@ -163,7 +162,7 @@ object PieceDictation {
         isFinishing = true
         try { s.recorder?.stop() } catch (_: Exception) {}
         vibrate(appContext, longArrayOf(0, 45, 90, 45)) // double buzz = stopped
-        updateNotificationText("Transcribing…")
+        appContext?.let { showFinishingNotification(it) }
         onState?.invoke()
     }
 
@@ -253,7 +252,7 @@ object PieceDictation {
             synchronized(s.texts) { s.texts[p.seq] = text }
             p.file.delete()
             s.piecesDone++
-            if (isRecording) updateNotificationText("Listening — ${s.piecesDone} piece${if (s.piecesDone == 1) "" else "s"} done")
+            if (isRecording) updateNotificationText("${s.piecesDone} piece${if (s.piecesDone == 1) "" else "s"} done")
         }
         val full = synchronized(s.texts) { s.texts.values.filter { it.isNotBlank() }.joinToString(" ").trim() }
         main.post { finish(ctx, s, full, commit) }
@@ -464,37 +463,67 @@ object PieceDictation {
 
     @Volatile private var notifText = "Listening — tap mic again to stop"
 
-    private fun buildAndNotify(ctx: Context, progress: Int) {
+    private fun buildAndNotify(ctx: Context, progress: Int, text: String) {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
         val n = Notification.Builder(ctx, CHAN)
             .setSmallIcon(R.drawable.sym_keyboard_voice_rounded)
             .setContentTitle("Dictating…")
-            .setContentText(notifText)
+            .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setColor(Color.RED)
             .setColorized(true)
-            .setProgress(100, progress, false)       // determinate, capped <100 → punch-hole ring
+            .setProgress(62, progress, false)        // 30 s countdown, see tickNotification
             .setCategory(Notification.CATEGORY_PROGRESS)
             .build()
         nm.notify(NOTIF_ID, n)
     }
 
-    private fun tickNotification() {
-        val ctx = appContext ?: return
-        if (!isRecording && !isFinishing) return
-        notifProgress = (notifProgress + 12) % 84
-        buildAndNotify(ctx, 12 + notifProgress)
-        main.postDelayed(notifTick, 450)
+    /**
+     * After the stop tap: a visibly different notification — grey instead of red, a
+     * "stopped" title and an indeterminate bar instead of the advancing one — so it's clear at
+     * a glance that the mic is off and only the text is still on its way (user ask 2026-10-17).
+     */
+    private fun showFinishingNotification(ctx: Context) {
+        main.removeCallbacks(notifTick)
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureChannel(nm)
+        nm.notify(NOTIF_ID, Notification.Builder(ctx, CHAN)
+            .setSmallIcon(R.drawable.sym_keyboard_voice_rounded)
+            .setContentTitle("Stopped — transcribing")
+            .setContentText("Mic is off. Text arrives in a moment.")
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setColor(Color.GRAY)
+            .setProgress(0, 0, true)                 // indeterminate: clearly not "recording"
+            .setCategory(Notification.CATEGORY_PROGRESS)
+            .build())
     }
 
+    /**
+     * 30-second countdown that repeats (user ask 2026-10-17), so the length of Whisper's
+     * 30 s window can be judged by eye. Half-second steps on a 0..62 scale, kept within
+     * 2..61 so the bar never reads exactly 0% or 100% (keeps the punch-hole ring showing).
+     */
+    private fun tickNotification() {
+        val ctx = appContext ?: return
+        if (!isRecording) return
+        val halfSecs = ((System.currentTimeMillis() - recordStartMs) / 500).toInt()
+        val inCycle = halfSecs % 60                  // 0..59 half-seconds into this 30 s cycle
+        val secsLeft = 30 - inCycle / 2
+        buildAndNotify(ctx, 61 - inCycle, "${secsLeft}s · $notifText")
+        main.postDelayed(notifTick, 500)
+    }
+
+    @Volatile private var recordStartMs = 0L
+
     private fun showRecordingNotification(ctx: Context) {
-        notifText = "Listening — tap mic again to stop"
-        notifProgress = 0
+        notifText = "tap mic again to stop"
+        recordStartMs = System.currentTimeMillis()
         main.removeCallbacks(notifTick)
-        buildAndNotify(ctx, 12)
-        main.postDelayed(notifTick, 450)
+        buildAndNotify(ctx, 61, "30s · $notifText")
+        main.postDelayed(notifTick, 500)
     }
 
     private fun updateNotificationText(text: String) { notifText = text }
