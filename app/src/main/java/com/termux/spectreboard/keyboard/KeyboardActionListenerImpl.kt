@@ -182,8 +182,8 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                             "com.libremobileos.freeform",
                             "com.libremobileos.freeform.receiver.StartFreeformReceiver",
                         )
-                        putExtra("packageName", "com.termux.cybersyn.stub1")
-                        putExtra("activityName", "com.termux.cybersyn.stub1.TrackpadStubActivity")
+                        putExtra("packageName", "com.termux.cybersyn.stub2")   // trackpad moved to stub2 (10-26); stub1 = ServerBox
+                        putExtra("activityName", "com.termux.cybersyn.stub2.TrackpadStubActivity")
                         putExtra("userId", 0)
                         putExtra("taskId", -1)
                     }

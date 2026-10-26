@@ -24,8 +24,8 @@ android {
         applicationId = "com.termux.spectreboard"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4002
-        versionName = "4.0-alpha2"
+        versionCode = 4003
+        versionName = "4.0-alpha3-kbshader"
         ndk {
             // arm64 only: this APK only ever runs on the Pixel. The other ABIs pulled in
             // ~53 MB of ONNX Runtime alone, and the bundled scorer jniLibs are arm64-only

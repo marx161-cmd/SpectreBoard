@@ -36,6 +36,7 @@ import com.termux.spectreboard.keyboard.internal.DrawingProxy;
 import com.termux.spectreboard.keyboard.internal.GestureFloatingTextDrawingPreview;
 import com.termux.spectreboard.keyboard.internal.GestureTrailsDrawingPreview;
 import com.termux.spectreboard.keyboard.internal.KeyDrawParams;
+import com.termux.spectreboard.shader.KeyboardShader;
 import com.termux.spectreboard.keyboard.internal.KeyPreviewChoreographer;
 import com.termux.spectreboard.keyboard.internal.KeyPreviewDrawParams;
 import com.termux.spectreboard.keyboard.internal.KeyPreviewView;
@@ -361,6 +362,8 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     public void onKeyPressed(@NonNull final Key key, final boolean withPreview) {
         key.onPressed();
         invalidateKey(key);
+        // Live keyboard shader (scope.md 2026-10-23): anchor the glitch to this key.
+        KeyboardShader.onKeyHit(this, key);
 
         final Keyboard keyboard = getKeyboard();
         if (keyboard == null) {

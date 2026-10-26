@@ -40,6 +40,7 @@ import com.termux.spectreboard.keyboard.internal.KeyboardState;
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.EmojiParserKt;
 import com.termux.spectreboard.latin.utils.FloatingKeyboardUtils;
 import com.termux.spectreboard.latin.InputView;
+import com.termux.spectreboard.shader.KeyboardShader;
 import com.termux.spectreboard.latin.KeyboardWrapperView;
 import com.termux.spectreboard.latin.LatinIME;
 import com.termux.spectreboard.latin.R;
@@ -763,6 +764,9 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
 
         mKeyboardViewWrapper = mCurrentInputView.findViewById(R.id.keyboard_view_wrapper);
         mKeyboardViewWrapper.setKeyboardActionListener(mLatinIME.mKeyboardActionListener);
+        // Keyboard shader (scope.md 2026-10-23): post-process the keys wrapper. No-op below
+        // API 33 or when no shader file is present.
+        KeyboardShader.attach(mKeyboardViewWrapper);
         mKeyboardView = mCurrentInputView.findViewById(R.id.keyboard_view);
         mKeyboardView.setHardwareAcceleratedDrawingEnabled(isHardwareAcceleratedDrawingEnabled);
         mKeyboardView.setKeyboardActionListener(mLatinIME.mKeyboardActionListener);

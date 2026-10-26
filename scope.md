@@ -353,3 +353,96 @@ clipboard to UDTTSR's `ReadAloudService`. That streams it through `textclean.py`
 and Kokoro on comrade over ssh. A tap while reading stops it. KEYCODE_COPY was
 chosen over Ctrl+C because Ctrl+C would SIGINT in Termux. The user confirmed
 it works in Termux too. Split keyboard itself remains in settings.
+
+## 2026-10-23 — Keyboard shader surface (B1 in `android-mods/SHADER_SPOTS.md`)
+
+**What:** a live shader over the keyboard, drawn inside our own app (no LSPosed hook, no
+SystemUI/system_server risk). The whole keyboard content is post-processed with
+`RenderEffect.createRuntimeShaderEffect(shader, "iContent")` — the real keys and LETTERS are
+warped as rendered pixels — and per-key press data is fed in as uniforms so the damage is
+anchored to the key just hit.
+
+**User decisions (2026-10-23):**
+- **Warp the letters, don't protect them.** Explicitly the opposite of qs-shader-live's
+  text-aware dial-back: a keyboard layout is muscle memory, "you could strip 80% of every
+  letter and it would still be usable". No text boxes, no legibility guard.
+- **Per-key drawing is not enough on its own.** `RuntimeShader` is a `Shader`, so a per-key
+  paint can fill/tint a key (and per-key press rings are cheap), but it cannot displace glyph
+  geometry. Letter-shape destruction therefore happens in the global `iContent` effect; keys
+  may still get their own press visuals later.
+- **Music reactivity:** beat clock if there is one, otherwise the JDSP pipes.
+  `BeatSource` (cached map > desktop go) from qs-shader-live is reused in behaviour;
+  `bands.bin` v3 is added underneath (SpectreBoard is UID 1000 and CAN read it — unlike
+  SystemUI), so `u_onset`/`u_flux`/`u_bass` drive hits when no map matches, and the bands
+  feed the continuous floor in every case.
+
+**Architecture:**
+- New package `com.termux.spectreboard.shader`:
+  - `BandsFeed` — port of ShaderEditor's `opengl/JdspBandsFeed.java` (mmap, seq, v3 ring,
+    11 features, per-band group-delay alignment). Owner is `audioserver`, file is 0644;
+    verified readable from the `system` UID 2026-10-23.
+  - `BeatSource` — port of `qs-shader-live/BeatSource.java` (media session match against
+    `/data/local/tmp/qs_shader/index.json` + `maps/<id>.bin`, else `go.txt`, minus
+    `beat_offset_ms.txt`). `MEDIA_CONTENT_CONTROL` is granted to the shared UID (verified).
+    Writes its own status file, never qs_shader's.
+  - `ShaderFile` — port of the qs-shader-live loader: mtime hot reload (≤1 s), `//#include`,
+    uniform-declared-only setters, compile error → effect removed, never a crash.
+  - `KeyboardShader` — Choreographer loop, uniform upload, key-hit ring, attach/detach.
+- Shader files live in `~/shaders/keyboard/keyboard.agsl` (Termux home, same UID), with the
+  app files dir as fallback. Same edit-and-watch loop as ShaderEditor.
+- **Attach point:** `KeyboardSwitcher` already resolves `R.id.main_keyboard_frame` after
+  inflating `input_view`; the effect is attached to `R.id.keyboard_view_wrapper` first (keys
+  only, suggestion strip stays stock). One switch in `KeyboardShader` will include the frame.
+- **Loop gating:** animate only while bands are live (music) or ≤1.2 s after a key hit; idle
+  renders one static frame and stops. 60 fps cap. The key preview bubbles live in
+  `android.R.id.content` (`DrawingPreviewPlacerView`) and are intentionally NOT warped for v1.
+
+**Uniforms v1:** `iResolution iTime`, `shader iContent`, `float4 iBands[27]` /
+`float4 iBandsDb[27]` (108 flattened), the 11 features (`u_rms`…`u_onset`) plus
+`u_onset_smooth u_onset_accum u_bass_accum`, `iBeatOn iBeatPhase iBeatCount iBpm iBarPhase
+iBeatsPerBar`, `iLive`, and `float4 iHit[4]` + `float iHitAge[4]` + `iHitN` (key rects in
+effect-pixel space). `bands_hist` is deliberately not exposed yet.
+
+**Cost / safety:** full keyboard raster per animated frame (text included) is the real cost,
+not the shader math — measure with `dumpsys gfxinfo` before making it free-running. A failed
+compile or a missing file must leave stock drawing untouched (falls back to
+`setRenderEffect(null)`).
+
+**Deploy:** `./gradlew assembleRelease` only; versionCode bumped past 4002 (ROM copy);
+`blazer-sysapp-update install com.termux.spectreboard <apk>`. Installing any family app can
+kill `sshd`/`npud` collateral (shared UID 1000) — batch it.
+
+**Open:** suggestion strip include (default keys-only), idle shimmer (default off), per-key
+paint visuals, `bands_hist`, warping the key-preview bubbles.
+
+## 2026-10-23 (tuning round, live with the user)
+
+User feedback drove three passes, all verified by screenshot on blazer:
+
+1. **"constant motion is way too busy"** — the first version had ambient tearing driven by
+   `iTime` and a 1.2 s full-effect tail. Now the shader is event-driven: `drive` is 0 at rest,
+   the loop stops when the burst dies, and nothing moves if nothing happens.
+2. **"the shockwave is basically instant … all letters shift"** — the damage was gated by a
+   scalar `hitEnv`, which is 1 everywhere on the press frame. Now the displacement is gated by
+   a **per-pixel** front (`wave`), and the front is capped to a bubble around the pressed key.
+   The scar was full-width; it is now a short ragged slash (`LOCAL_R` ≈ 0.30 × keyboard height,
+   scar segment ±0.55 R). Confirmed: pressing space glitches only the space bar area.
+3. **Cyberpunk look, still at rest** — added neon edge glow traced from the real glyph/key
+   edges plus a static teal→magenta grid/rails. Gotcha found live: the keys wrapper has a
+   **transparent background** (the real background lives on `main_keyboard_frame`), so the
+   first glow implementation (`neon * col.a`) was invisible in the gaps between keys. Fixed by
+   adding glow in premultiplied space with its **own alpha** (`col = half4(col.rgb + glow,
+   col.a + glowA)`).
+4. **Locality verified** with a debug shader that painted `iHit[]` rects — the rects land on
+   the pressed keys, so the uniform plumbing is correct.
+
+User verdict: "yes thats better 🔥". Still open: the music path (`live=true` / `beatOn=true`)
+has not been exercised by ear yet; the effect remains keys-only (suggestion strip stock).
+
+## 2026-10-23 (later) — neon linework removed; black backdrop + typing glitch only
+
+The static neon edge glow / grid / side rails were built, then **removed at the user's
+request**: "i liked the black backdrop the glitches when typing are perfect thats enough".
+The shader now draws NOTHING at rest (stock black keyboard) and only the local per-key
+bubble + scar when a key is pressed. `LOCAL_R`, `WAVE_SPEED`, the scar and the JDSP/beat
+inputs are unchanged. This is the look to protect when tuning further.

@@ -1,0 +1,191 @@
+// Keyboard shader — SpectreBoard live keyboard surface (scope.md 2026-10-23)
+//
+// LOCAL glitch (user 2026-10-23: "can we have the glitches be a bit more local"):
+// everything a key press causes stays inside a bubble around THAT key — about two key
+// widths. No full-width scar, no front racing across the keyboard.
+//
+// Still keeps the cyberpunk look:
+//   * neon edge glow traced from the real glyph/key edges;
+//   * a static thin grid (teal -> magenta) so it looks styled while nothing happens;
+//   * per-key bubble: short ragged scar segment + local tear/blocks/chroma, decaying.
+// At rest nothing moves; the loop stops when the bubble has decayed.
+
+uniform shader iContent;
+
+uniform float2 iResolution;
+uniform float iTime;
+
+uniform float4 iBands[27];
+uniform float4 iBandsDb[27];
+
+uniform float u_rms;
+uniform float u_sub;
+uniform float u_bass;
+uniform float u_lowmid;
+uniform float u_mid;
+uniform float u_highmid;
+uniform float u_presence;
+uniform float u_brilliance;
+uniform float u_centroid;
+uniform float u_flux;
+uniform float u_onset;
+uniform float u_onset_smooth;
+uniform float u_onset_accum;
+uniform float u_bass_accum;
+
+uniform float iBeatOn;
+uniform float iBeatPhase;
+uniform float iBeatCount;
+uniform float iBpm;
+uniform float iBarPhase;
+uniform float iBeatsPerBar;
+uniform float iLive;
+
+uniform float4 iHit[4];
+uniform float iHitAge[4];
+uniform float iHitN;
+
+// Bubble radius as a fraction of the keyboard height (about 1.5-2 key rows).
+float LOCAL_R = 0.30;
+// How fast the ring crosses one screen height (slow, so it stays in the bubble).
+float WAVE_SPEED = 0.20;
+float WAVE_WIDTH = 0.030;
+
+float hash11(float n) {
+    return fract(sin(n * 127.1) * 43758.5453);
+}
+
+float hash21(float2 p) {
+    return fract(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise1s(float x) {
+    float i = floor(x);
+    float f = fract(x);
+    return mix(hash11(i), hash11(i + 1.0), f * f * (3.0 - 2.0 * f));
+}
+
+float lum(half4 c) {
+    return dot(c.rgb, half3(0.299, 0.587, 0.114));
+}
+
+half4 main(float2 fc) {
+    float2 res = max(iResolution, float2(1.0));
+    float R = max(120.0, LOCAL_R * res.y);
+
+    // --- per-key bubbles ----------------------------------------------------
+    float wave = 0.0;          // travelling front, local
+    float localMask = 0.0;     // 1 inside a fresh bubble, 0 outside
+    float ringSum = 0.0;
+    float2 hitDir = float2(0.0);
+    for (int i = 0; i < 4; i++) {
+        if (float(i) >= iHitN) {
+            break;
+        }
+        float4 r = iHit[i];
+        float age = iHitAge[i];
+        float2 c = r.xy + r.zw * 0.5;
+        float dist = length(fc - c);
+        localMask = max(localMask, (1.0 - smoothstep(0.30 * R, R, dist)) * exp(-age * 2.0));
+        float front = min(age * WAVE_SPEED * res.y, R);
+        float band = exp(-pow((dist - front) / (WAVE_WIDTH * res.y), 2.0));
+        float ring = band * exp(-age * 2.8);
+        ringSum += ring;
+        hitDir += normalize(fc - c + float2(1e-3)) * ring;
+        wave = max(wave, ring);
+    }
+
+    float kick = iBeatOn * exp(-6.0 * iBeatPhase);
+    float transient = iLive * max(u_onset, u_onset_smooth) * 0.6;
+    float beatDrive = 0.30 * kick + 0.20 * transient;
+
+    // --- scar segment, only around the newest key ---------------------------
+    float scarInside = 0.0;
+    float scarEdge = 0.0;
+    float scarBranch = 0.0;
+    float scarSeed = 0.0;
+    float2 scarPush = float2(0.0);
+    if (iHitN > 0.5) {
+        float4 hr = iHit[0];
+        float age0 = iHitAge[0];
+        scarSeed = hash21(hr.xy) * 97.0;
+        float2 hc = hr.xy + 0.5 * hr.zw;
+        // the scar is a short torn slash through the key, not a line across the screen
+        float halfLen = 0.55 * R;
+        float along = fc.x - hc.x;
+        float inSeg = 1.0 - smoothstep(halfLen * 0.6, halfLen, abs(along));
+        float a = mix(-0.22, 0.22, hash11(scarSeed + 1.0));
+        float xq = floor((along + 1000.0) / 3.0) * 3.0 - 1000.0;
+        float scarY = hc.y + a * xq
+                    + (noise1s(xq / 40.0 + scarSeed) - 0.5) * 26.0
+                    + (noise1s(xq / 13.0 + scarSeed * 2.0) - 0.5) * 7.0
+                    + (hash11(floor(xq / 5.0) + scarSeed) - 0.5) * 3.0;
+        float d = fc.y - scarY;
+        float wv = 1.5 + 6.0 * pow(noise1s(xq / 30.0 + scarSeed * 3.0), 2.0);
+        float present = smoothstep(0.10, 0.30, noise1s(xq / 55.0 + scarSeed * 5.0));
+        float strength = exp(-age0 * 2.4) * inSeg;
+        float zone = (1.0 - smoothstep(0.0, 0.45 * R, abs(d))) * mix(0.4, 1.0, present);
+        scarPush = float2(0.0, -sign(d) * zone * zone * 22.0 * strength);
+        scarInside = (1.0 - step(wv, abs(d))) * present * strength;
+        scarEdge = exp(-pow((abs(d) - wv - 1.0) / 1.4, 2.0)) * present
+                 * step(0.30, noise1s(fc.x / 14.0 + floor(iTime * 6.0) + scarSeed))
+                 * strength;
+        // two short hairline branches out of the key
+        for (int b = 0; b < 2; b++) {
+            float bb = float(b);
+            float ang = mix(0.5, 1.2, hash11(scarSeed + 70.0 + bb))
+                      * (bb > 0.5 ? 1.0 : -1.0);
+            float2 v = fc - hc;
+            float al = dot(v, float2(cos(ang), sin(ang)));
+            float off = abs(dot(v, float2(-sin(ang), cos(ang)))
+                          + (noise1s(al / 14.0 + bb + scarSeed) - 0.5) * 8.0);
+            float len = 0.45 * R;
+            float hair = step(0.0, al) * step(al, len)
+                       * (1.0 - smoothstep(0.4, 1.4, off)) * (1.0 - al / len);
+            scarBranch += hair * strength;
+        }
+    }
+
+    // --- glitch, masked to the bubble ---------------------------------------
+    float amp = (0.010 + 1.10 * wave) * localMask;
+    float rowH = max(4.0, res.y / 64.0);
+    float row = floor(fc.y / rowH);
+    float rnd = hash11(row * 1.37 + scarSeed * 0.7);
+    float tear = (rnd - 0.5) * 26.0 * amp * step(0.90 - 0.14 * wave, rnd);
+
+    float2 cell = float2(30.0, 20.0);
+    float2 cid = floor(fc / cell) + scarSeed * 0.3;
+    float ch = hash21(cid);
+    float blocky = step(0.990 - 0.10 * wave, ch);
+    float2 blockOff = (float2(hash21(cid + 11.0), hash21(cid + 23.0)) - 0.5)
+            * 18.0 * amp * blocky;
+
+    float2 p = fc + float2(tear, 0.0) + blockOff + hitDir * ringSum * 6.0 + scarPush;
+
+    // --- sample the real keyboard -------------------------------------------
+    half4 c0 = iContent.eval(p);
+    half4 col = c0;
+    float ca = (3.5 * wave + 0.8 * beatDrive) * localMask * (res.y / 1000.0);
+    if (ca > 0.30) {
+        half4 cr = iContent.eval(p + float2(ca, 0.0));
+        half4 cb = iContent.eval(p - float2(ca, 0.0));
+        col = half4(cr.r, c0.g, cb.b, c0.a);
+    }
+
+    half3 teal = half3(0.05, 0.95, 0.85);
+    half3 magenta = half3(1.0, 0.08, 0.45);
+
+    // --- scar interior + edge light + branches ------------------------------
+    float g = hash21(floor(fc / float2(3.0, 2.0)) + floor(iTime * (8.0 + 30.0 * kick)));
+    half3 junk = g > 0.93 ? (g > 0.965 ? magenta : teal) : half3(g * 0.12);
+    col.rgb = mix(col.rgb, junk, half(scarInside * 0.9));
+    half3 scarHue = mix(teal, magenta, half(hash11(floor(fc.x / 40.0) + scarSeed)));
+    col.rgb += scarHue * col.a * half(scarEdge * (0.5 + 0.8 * kick));
+    col.rgb = mix(col.rgb, half3(0.9, 1.0, 1.0), half(scarBranch * 0.55));
+
+    // --- edges of the story: nothing else is drawn at rest -----------------
+    // (The neon linework / grid was tried 2026-10-23 and removed by the user: the black
+    // backdrop is the look, the glitch on typing is the effect.)
+
+    return col;
+}
