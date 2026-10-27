@@ -435,8 +435,7 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
                 val n = pointers.pointerSize
                 val coords = List(n) { i -> PointF(pointers.xCoordinates[i].toFloat(), pointers.yCoordinates[i].toFloat()) }
                 val times = List(n) { i -> pointers.times[i].toLong() }
-                NeuralShadow.submit(coords, times, keyboard.mOccupiedWidth.toFloat(),
-                    keyboard.mOccupiedHeight.toFloat()) { wordData.neural = it }
+                NeuralShadow.submit(coords, times, keyboard) { wordData.neural = it }
             }
         }
 

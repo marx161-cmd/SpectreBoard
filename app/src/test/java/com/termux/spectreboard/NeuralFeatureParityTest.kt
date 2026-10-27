@@ -27,7 +27,7 @@ class NeuralFeatureParityTest {
             val coords = List(xs.length()) { PointF(xs.getInt(it).toFloat(), ys.getInt(it).toFloat()) }
             val times = List(ts.length()) { ts.getLong(it) }
             val f = TrajectoryFeatureExtractor.extractFeatures(coords, times,
-                case.getDouble("width").toFloat(), case.getDouble("height").toFloat())
+                case.getDouble("width").toFloat(), case.getDouble("height").toFloat(), case.optDouble("top", 0.0).toFloat())
             val word = case.getString("word")
             assertEquals("length $word", case.getInt("length"), f.actualLength)
             val keys = case.getJSONArray("keys")

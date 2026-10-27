@@ -94,7 +94,8 @@ object NeuralGestureEngine {
         coords: List<PointF>,
         timestamps: List<Long>,
         keyboardWidth: Float,
-        keyboardHeight: Float
+        keyboardHeight: Float,
+        qwertyTop: Float = 0f
     ): List<Pair<String, Float>> {
         if (!nativeAvailable || !initialized || coords.size < 3) return emptyList()
 
@@ -102,7 +103,7 @@ object NeuralGestureEngine {
         val env = ortEnv ?: return emptyList()
         val decoder = beamDecoder ?: return emptyList()
 
-        val features = TrajectoryFeatureExtractor.extractFeatures(coords, timestamps, keyboardWidth, keyboardHeight)
+        val features = TrajectoryFeatureExtractor.extractFeatures(coords, timestamps, keyboardWidth, keyboardHeight, qwertyTop)
         if (features.actualLength == 0) return emptyList()
 
         var trajTensor: OnnxTensor? = null

@@ -29,14 +29,31 @@ def word_tokens(word: str) -> list[int]:
     return [char_token(c) for c in word.lower()]
 
 
-def extract(xs, ys, ts, width: float, height: float):
-    """Raw pointer coords (px) + millis -> (traj [MAX_SEQ,6] f32, keys [MAX_SEQ] i32, length)."""
+def qwerty_band(keys, full_height: float):
+    """Letter-row band (top, height) in px from keyboardInfo keys, = NeuralShadow.qwertyBand (f32, same order)."""
+    f32 = np.float32
+    q = next((k for k in keys if k.get("value") == "q"), None)
+    m = next((k for k in keys if k.get("value") == "m"), None)
+    if q is None or m is None:
+        return f32(0), f32(full_height)
+    qc = f32(q["top"]) + f32(q["height"]) / f32(2)
+    mc = f32(m["top"]) + f32(m["height"]) / f32(2)
+    row = (mc - qc) / f32(2)
+    if row <= 0:
+        return f32(0), f32(full_height)
+    top = qc - row / f32(2)
+    return (f32(0), f32(3) * row + top) if top < 0 else (top, f32(3) * row)
+
+
+def extract(xs, ys, ts, width: float, height: float, top: float = 0.0):
+    """Raw pointer coords (px) + millis -> (traj [MAX_SEQ,6] f32, keys [MAX_SEQ] i32, length).
+    y is normalised over the letter rows: `top`/`height` = qwerty_band(), as on the phone."""
     n = min(len(xs), len(ts))
     if n < 3:
         return None
     f32 = np.float32
     x = np.clip(np.asarray(xs[:n], f32) / f32(width), 0, 1).astype(f32)
-    y = np.clip(np.asarray(ys[:n], f32) / f32(height), 0, 1).astype(f32)
+    y = np.clip((np.asarray(ys[:n], f32) - f32(top)) / f32(height), 0, 1).astype(f32)
     # smoothing: mean over [i-1, i+1] clamped to the ends (window 3)
     if n >= SMOOTHING_WINDOW:
         h = SMOOTHING_WINDOW // 2

@@ -129,7 +129,7 @@ class BeamSearchDecoder(
                 "target_tokens" to tgtTensor,
                 "actual_src_length" to srcLenTensor
             ))
-            val array = parseSingleOutput(result.first().value, seqLen)
+            val array = parseSingleOutput(result.get(0).value, seqLen)
             tgtTensor.close(); srcLenTensor.close(); result.close()
             array
         } catch (e: Exception) {
@@ -152,7 +152,7 @@ class BeamSearchDecoder(
                 "target_tokens" to tgtTensor,
                 "actual_src_length" to srcLenTensor
             ))
-            val flat = parseBatchedOutput(result.first().value, numBeams, seqLen, vocabSize)
+            val flat = parseBatchedOutput(result.get(0).value, numBeams, seqLen, vocabSize)
             tgtTensor.close(); srcLenTensor.close(); result.close()
             flat
         } catch (e: Exception) {

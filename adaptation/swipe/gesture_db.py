@@ -8,6 +8,8 @@ WORD column holds Google's accepted top pick (GestureDataGathering: targetWord ?
 """
 import json
 import sqlite3
+
+from features import qwerty_band
 from dataclasses import dataclass
 
 INPUT_STYLE_TAIL_BATCH = 3
@@ -22,7 +24,8 @@ class Swipe:
     ys: list
     ts: list
     width: int
-    height: int
+    height: int               # letter-row band height (px), see features.qwerty_band
+    top: float                # letter-row band top (px)
     google: list              # Google's suggestions, best first (lowercased)
 
 
@@ -49,7 +52,7 @@ def load(db_path: str, min_points: int = 6) -> tuple[list[Swipe], dict]:
             continue
         kb = d["keyboardInfo"]
         out.append(Swipe(row_id, ts, word, [p["x"] for p in pts], [p["y"] for p in pts],
-                         [p["millis"] for p in pts], kb["width"], kb["height"],
+                         [p["millis"] for p in pts], kb["width"], *reversed(qwerty_band(kb.get("keys", []), kb["height"])),
                          [s["word"].lower() for s in d.get("suggestions", [])]))
         stats["kept"] += 1
     con.close()

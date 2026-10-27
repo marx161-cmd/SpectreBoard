@@ -35,7 +35,9 @@ object TrajectoryFeatureExtractor {
         coords: List<PointF>,
         timestamps: List<Long>,
         keyboardWidth: Float,
-        keyboardHeight: Float
+        keyboardHeight: Float,
+        qwertyTop: Float = 0f // y is normalised over the letter rows (CleverKeys CoordinateNormalizer):
+                              // keyboardHeight = their height, qwertyTop = their top; see qwertyBand()
     ): TrajectoryFeatures {
         val count = min(coords.size, timestamps.size)
         if (count < 3) return TrajectoryFeatures(emptyList(), emptyList(), 0)
@@ -44,7 +46,7 @@ object TrajectoryFeatureExtractor {
         for (i in 0 until count) {
             normalized.add(PointF(
                 (coords[i].x / keyboardWidth).coerceIn(0f, 1f),
-                (coords[i].y / keyboardHeight).coerceIn(0f, 1f)
+                ((coords[i].y - qwertyTop) / keyboardHeight).coerceIn(0f, 1f)
             ))
         }
 

@@ -32,7 +32,7 @@ BASE = Path.home() / "kenlm/swipe/base_from_onnx.pt"
 def tensors(samples):
     traj, keys, lens, tgt_in, tgt_out = [], [], [], [], []
     for s in samples:
-        f = extract(s.xs, s.ys, s.ts, s.width, s.height)
+        f = extract(s.xs, s.ys, s.ts, s.width, s.height, s.top)
         if f is None:
             continue
         w = word_tokens(s.word)[:MAX_WORD - 1]
@@ -64,7 +64,7 @@ def val_loss(model, T, device):
 def top1(model, samples, trie, device, limit=None):
     model.eval(); hit = 0; preds = []
     for s in samples[:limit]:
-        f = extract(s.xs, s.ys, s.ts, s.width, s.height)
+        f = extract(s.xs, s.ys, s.ts, s.width, s.height, s.top)
         mem = model.encode(torch.from_numpy(f[0])[None].to(device), torch.from_numpy(f[1])[None].long().to(device),
                            torch.tensor([f[2]], device=device))
         c = decode(model, mem, torch.tensor([f[2]], device=device), trie, device)
