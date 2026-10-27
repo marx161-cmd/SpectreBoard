@@ -6,6 +6,7 @@ import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.PointF
 import android.util.Log
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -48,7 +49,10 @@ object NeuralGestureEngine {
                     .bufferedReader().use { it.readText() }
                 Tokenizer.loadFromJson(tokenizerJson)
 
-                vocabTrie.loadFromAssets(this.context, NeuralConfig.DICTIONARY)
+                val pushedVocab = File(File(this.context.filesDir, NeuralConfig.OVERRIDE_DIR), NeuralConfig.PUSHED_VOCAB)
+                if (pushedVocab.isFile) vocabTrie.loadFromFile(pushedVocab)
+                else vocabTrie.loadFromAssets(this.context, NeuralConfig.DICTIONARY)
+                Log.i(TAG, "model override dir: ${File(this.context.filesDir, NeuralConfig.OVERRIDE_DIR)}")
                 Log.i(TAG, "Loaded ${vocabTrie.size} words into vocabulary")
                 beamDecoder = BeamSearchDecoder(
                     ortEnv = ortEnv!!,
@@ -66,8 +70,16 @@ object NeuralGestureEngine {
         }
     }
 
+    /** Retrained models pushed from comrade (adaptation/swipe) live here and win over the assets. */
+    private fun overrideFile(assetPath: String): File =
+        File(File(this.context.filesDir, NeuralConfig.OVERRIDE_DIR), assetPath.substringAfterLast('/'))
+
     private fun loadSession(assetPath: String): OrtSession {
-        val bytes = this.context.assets.open(assetPath).use { it.readBytes() }
+        val override = overrideFile(assetPath)
+        val bytes = if (override.isFile) {
+            Log.i(TAG, "loading pushed model $override")
+            override.readBytes()
+        } else this.context.assets.open(assetPath).use { it.readBytes() }
         val options = OrtSession.SessionOptions().apply {
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
             setIntraOpNumThreads(NeuralConfig.ONNX_THREADS)

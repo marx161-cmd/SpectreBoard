@@ -8,7 +8,9 @@ object NeuralConfig {
     const val BEAM_PRUNE_CONFIDENCE = 0.8f
     const val BEAM_SCORE_GAP = 80.0f
     const val TEMPERATURE = 1.0f
-    const val MAX_SEQ_LENGTH = 150
+    // must equal the encoder's fixed input length (assets/models/model_config.json max_seq_len);
+    // 150 made every predict() throw ORT_INVALID_ARGUMENT since 2026-07-20 (scope.md 2026-10-27)
+    const val MAX_SEQ_LENGTH = 250
     const val ONNX_THREADS = 2
     const val ADAPTIVE_WIDTH_STEP = 12
     const val SCORE_GAP_STEP = 12
@@ -28,4 +30,8 @@ object NeuralConfig {
     const val DICTIONARY = "dictionaries/en.txt"
 
     const val SMOOTHING_WINDOW = 3
+
+    // filesDir/neural/: swipe_encoder_android.onnx, swipe_decoder_android.onnx, swipe_vocab.txt
+    const val OVERRIDE_DIR = "neural"
+    const val PUSHED_VOCAB = "swipe_vocab.txt"
 }

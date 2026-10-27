@@ -489,3 +489,42 @@ another input), so gesture_ab_log has `neural_top: ""` on all 5,594 rows; Google
 User decision: stop, revert the attempt, ship a README disclaimer (swipe needs the user-loaded
 gesture library, as in HeliBoard). Neural engine repair = open item, not scheduled.
 Also seen: PhoneticExpander.doubleMetaphone throws StringIndexOutOfBounds at load (open).
+
+## 2026-10-27 (later) — neural swipe engine: student of Google, trained on the user's swipes
+
+Root cause of the dead engine found offline (comrade, real ONNX models): encoder needs 250 points
+(code pads 150); decoder needs target_tokens always padded to 20 (max_word_len) and reading the
+logits at the current position — the beam search fed growing lengths 1,2,3… With both fixed,
+encoder + decoder run (single and batched beams).
+
+User's goal (verbatim intent): NOT "improve the Google library" (impossible). Google is the
+teacher: the neural model learns swipe trajectory → correct word from the user's own data, i.e.
+GESTURE_DATA (x/y/millis path + `targetWord` = the word that actually ended up committed: Google's
+pick, or the user's correction when Google was wrong). Train on comrade, repeatedly as data grows.
+- Shadow mode on the phone: engine runs per swipe, its guess is logged vs the final word, never
+  shown. The personal keyboard must look and type exactly as today ("works perfectly").
+- Eval on held-out swipes each round: neural top-1 vs Google top-1 against targetWord.
+- Only when the neural model is measurably more accurate does it get a say in suggestions —
+  and that switch is the user's decision, not automatic.
+- Data: user pushes heliboard.db to comrade when home (no adb pulls over mobile).
+
+## 2026-10-27 (later) — CORRECTION + steps 1/2 built (shadow mode, training pipeline)
+
+Correction to the entry above: the decoder-padding "second bug" was wrong — BeamSearchDecoder.kt
+already pads target_tokens to 20 (my Python test hadn't). The on-device error after the 250 fix
+was never read (rolled out of logcat); shadow mode logs it if it recurs.
+
+Step 1 (keyboard, invisible): MAX_SEQ_LENGTH 250; neural candidate injection + gesture A/B log
+REMOVED from Suggest (never worked); `NeuralShadow` runs the engine on each recorded swipe on one
+background-priority thread after Google's list is out (skips if busy) and stores its top-3 as
+`neural` in that swipe's GESTURE_DATA record ([] = engine failed). Models/vocab pushed to
+filesDir/neural/ override the APK assets. Public build: shadow off.
+Step 2 (comrade, `adaptation/swipe/`): no float checkpoint of the shipped model exists, so
+`onnx_import.py` rebuilds it from the int8 ONNX (decoder matches 100% top-1; encoder ~8% rel.
+diff = the shipped int8 activation rounding, input step 0.078 ≈ 13 position levels).
+`features.py` = exact port of TrajectoryFeatures.kt; `beam.py` = port of BeamSearchDecoder.kt;
+`train.py` fine-tunes on GESTURE_DATA (label targetWord, newest 10% held out) and reports top-1
+google / base / tuned; trie vocab = en.txt + the user's own a-z swiped words; `export.py` writes
+float32 ONNX with the phone's exact I/O contract (no int8). Base weights: ~/kenlm/swipe/.
+Verified on synthetic data only (synth.py); real numbers need the pushed heliboard.db.
+Limitation: model alphabet is a-z, so umlaut words can't be learned by this model.

@@ -32,8 +32,7 @@ import com.termux.spectreboard.spectre.GruScorer
 import com.termux.spectreboard.spectre.KenLmScorer
 import com.termux.spectreboard.spectre.FuzzyExpander
 import com.termux.spectreboard.spectre.PhoneticExpander
-import com.termux.spectreboard.spectre.neural.NeuralGestureEngine
-import com.termux.spectreboard.spectre.neural.GestureAbLogger
+import com.termux.spectreboard.spectre.neural.NeuralShadow
 import com.termux.spectreboard.spectre.spatial.SpatialScorer
 import com.termux.spectreboard.latin.utils.WordData
 import com.termux.spectreboard.latin.utils.useBackgroundGathering
@@ -361,45 +360,8 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             settingsValuesForSuggestion, SESSION_ID_GESTURE, inputStyle
         )
 
-        // Ensemble: merge CleverKeys neural predictions into the candidate pool.
-        // Only run at gesture end (TAIL_BATCH), not on every drag tick (UPDATE_BATCH).
-        val neuralEngine = NeuralGestureEngine
-        if (neuralEngine.initialized && inputStyle == SuggestedWords.INPUT_STYLE_TAIL_BATCH) {
-            val pointers = wordComposer.inputPointers
-            val count = pointers.pointerSize
-            if (count >= 3) {
-                val xs = pointers.xCoordinates
-                val ys = pointers.yCoordinates
-                val rawTimes = pointers.times
-                val coords = List(count) { i -> PointF(xs[i].toFloat(), ys[i].toFloat()) }
-                val times = List(count) { i -> rawTimes[i].toLong() }
-                val predictions = neuralEngine.predict(
-                    coords, times,
-                    keyboard.mOccupiedWidth.toFloat(), keyboard.mOccupiedHeight.toFloat()
-                )
-
-                // Add CleverKeys candidates (dedup against Google, scored slightly below)
-                val googleWords = suggestionResults.map { it.mWord.lowercase() }.toSet()
-                val baseScore = suggestionResults.map { it.mScore }.average().toInt().coerceAtLeast(100)
-                for ((word, _) in predictions.take(3)) {
-                    if (word.lowercase() !in googleWords) {
-                        suggestionResults.add(SuggestedWordInfo(
-                            word, "", baseScore,
-                            SuggestedWordInfo.KIND_CORRECTION,
-                            Dictionary.DICTIONARY_USER_TYPED,
-                            SuggestedWordInfo.NOT_AN_INDEX,
-                            SuggestedWordInfo.NOT_A_CONFIDENCE
-                        ))
-                    }
-                }
-
-                val googleTop = suggestionResults.firstOrNull()?.mWord ?: ""
-                val neuralTop = predictions.firstOrNull()?.first ?: ""
-                val neuralTop3 = predictions.take(3).joinToString { it.first }
-                GestureAbLogger.log(googleTop, neuralTop, neuralTop3, googleWords.toList(), count)
-                Log.v("GestureAB", "google=\"$googleTop\" neural=\"$neuralTop\"")
-            }
-        }
+        // The neural engine no longer adds candidates here: it runs in shadow mode on recorded
+        // swipes (NeuralShadow, below) until it beats Google on held-out data (scope.md 2026-10-27).
 
         // For transforming words that don't come from a dictionary, because it's our best bet
         val locale = mDictionaryFacilitator.mainLocale
@@ -467,6 +429,15 @@ class Suggest(private val mDictionaryFacilitator: DictionaryFacilitator) {
             val wordData = WordData(null, suggestionResults, wordComposer.composedDataSnapshot,
                 ngramContext, keyboard, inputStyle, false, pseudoTypedWordInfo)
             BackgroundGatheringCache.addWord(wordData)
+            if (inputStyle == SuggestedWords.INPUT_STYLE_TAIL_BATCH) {
+                // shadow guess for this swipe, stored with it; never shown (scope.md 2026-10-27)
+                val pointers = wordComposer.inputPointers
+                val n = pointers.pointerSize
+                val coords = List(n) { i -> PointF(pointers.xCoordinates[i].toFloat(), pointers.yCoordinates[i].toFloat()) }
+                val times = List(n) { i -> pointers.times[i].toLong() }
+                NeuralShadow.submit(coords, times, keyboard.mOccupiedWidth.toFloat(),
+                    keyboard.mOccupiedHeight.toFloat()) { wordData.neural = it }
+            }
         }
 
         val autocorrectCapitalization = addCapitalizedSuggestion && Settings.getValues().mAutoCorrectCapitalizedSuggestion && isCorrectionEnabled && !wordComposer.isCursorFrontOrMiddleOfComposingWord

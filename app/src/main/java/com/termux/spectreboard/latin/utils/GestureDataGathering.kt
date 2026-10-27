@@ -246,6 +246,9 @@ class WordData(
 
     private val timestamp = System.currentTimeMillis()
 
+    /** Neural shadow guess (top 3), set from a background thread; empty = engine failed. */
+    @Volatile var neural: List<String>? = null
+
     fun save(context: Context) {
         if (PublicBuild.enabled) return // public test build never persists typing (scope.md 2026-10-27)
         GestureDataGatheringSettings.onTrySaveData(context.prefs())
@@ -297,7 +300,8 @@ class WordData(
             keyboardInfo,
             activeMode,
             null,
-            inputStyle
+            inputStyle,
+            neural
         )
         scope.launch { dao.add(data, topWord, timestamp) }
         if (!activeMode)
@@ -374,7 +378,8 @@ data class GestureData(
     val keyboardInfo: KeyboardInfo,
     val activeMode: Boolean,
     val uuid: String?,
-    val inputStyle: Int = SuggestedWords.INPUT_STYLE_NONE
+    val inputStyle: Int = SuggestedWords.INPUT_STYLE_NONE,
+    val neural: List<String>? = null // neural shadow top-3 (scope.md 2026-10-27); absent before then
 ) {
     companion object {
         fun GestureData.toJsonWithChecksum(): String {

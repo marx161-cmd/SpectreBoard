@@ -261,7 +261,7 @@ tasks.register("buildKenLmJni") {
 
 // Wire into both release and debug packaging so a fresh clone always has the
 // right binary regardless of which variant is assembled.
-listOf("mergeReleaseJniLibFolders", "mergeDebugJniLibFolders").forEach { taskName ->
+listOf("mergeReleaseJniLibFolders", "mergeDebugJniLibFolders", "mergePublicJniLibFolders").forEach { taskName ->
     tasks.matching { it.name == taskName }.configureEach {
         dependsOn("buildKenLmJni")
     }

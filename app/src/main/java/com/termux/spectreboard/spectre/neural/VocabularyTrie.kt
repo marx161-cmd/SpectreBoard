@@ -25,6 +25,18 @@ class VocabularyTrie {
         } catch (_: Exception) {}
     }
 
+    /** Same filter as the asset list; used for the vocab pushed with a retrained model. */
+    fun loadFromFile(file: java.io.File) {
+        try {
+            file.useLines { lines ->
+                for (line in lines) {
+                    val word = line.trim().lowercase()
+                    if (word.length >= 2 && word.all { it in 'a'..'z' }) insert(word)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     fun insert(word: String) {
         var node = root
         for (c in word) {
