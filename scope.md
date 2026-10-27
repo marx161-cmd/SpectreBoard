@@ -464,3 +464,28 @@ Decided:
   redistributable). Own signing key (not the Termux platform key).
 - `gru_vocab.txt`: sensitive lines (IPs, tailnet, Wi-Fi MAC iface, user@host prompts)
   replaced IN PLACE with `<redacted_N>` — line index == token ID, so no deletions.
+
+## 2026-10-27 (later) — public build ships the KenLM + GRU tiers
+
+User: leaving the scorer models out "is half of SpectreBoard" — bundle them. (Supersedes the
+earlier "personal models NEVER to public" line: user is fine publishing personal models,
+just not sensitive data.)
+- KenLM: NOT the nightly model (its vocab held token/password-looking strings, the Wi-Fi MAC
+  iface, tailnet). `adaptation/public_kenlm.py` trains `spectre_public_q8.blm` from the newest
+  nightly train.txt: words need count >= 3, mixed alnum >= 6 / digit runs / hex / homelab ids
+  dropped, numeric runs (IPs, MACs) cut, sentences split at every drop. Same lmplz/-q 8 trie.
+- GRU: the live `gru_cifg_int8.onnx` unchanged (vocab already redacted; 2 more identifiers,
+  a serial-like string and a Windows product ID, redacted → <redacted_63/64>).
+- Both ride in `src/public/assets` (gitignored, APK only) and are copied to filesDir on
+  first use (`PublicBuild.ensureBundledModel`).
+
+## 2026-10-27 (later) — neural-only swipe attempted, dropped; disclaimer instead
+
+Tried letting the CleverKeys ONNX engine swipe alone when Google's glide lib is missing.
+Findings: (1) the open libjni_latinime segfaults on batch input (no gesture decoder);
+(2) **the neural engine has never worked, in the personal build too** — every predict() threw
+(`trajectory_features` length 150 vs model's fixed 250; after fixing that, still failing on
+another input), so gesture_ab_log has `neural_top: ""` on all 5,594 rows; Google did all swiping.
+User decision: stop, revert the attempt, ship a README disclaimer (swipe needs the user-loaded
+gesture library, as in HeliBoard). Neural engine repair = open item, not scheduled.
+Also seen: PhoneticExpander.doubleMetaphone throws StringIndexOutOfBounds at load (open).

@@ -21,3 +21,9 @@ tools/*.txt
 /app/src/main/jniLibs/arm64-v8a/libLiteRtDispatch_GoogleTensor.so
 /app/src/main/jniLibs/arm64-v8a/libwhisper_g5_worker.so
 HeliBoard_backup_*.zip
+
+# Public build models (built by adaptation/public_kenlm.py + the live GRU); shipped in the APK, not in git
+/app/src/public/assets/*.blm
+/app/src/public/assets/*.onnx
+# Release (personal) build keeps the unredacted GRU vocab locally; overrides main/assets, never committed
+/app/src/release/assets/gru_vocab.txt

@@ -15,6 +15,24 @@ Also includes:
 - **Direct Input Mode** (padlock toolbar button): bypasses composing/autocorrect, commits each character immediately — useful in terminal apps.
 - Background gesture data collection for future spatial model training.
 
+## Public test builds
+
+Test APKs (`SpectreBoard_*-public.apk`) install as a normal app, **"SpectreBoard test"**
+(`com.termux.spectreboard.test`), next to any other keyboard. Built with `./gradlew assemblePublic`.
+
+- Includes the KenLM and GRU tiers (bundled in the APK; the KenLM is a filtered public build,
+  see `adaptation/public_kenlm.py`).
+- No internet, microphone or Termux permissions, and nothing you type is logged to disk.
+- Features that only work on the author's own setup (dictation, read-aloud, toolbar executor,
+  AMD/Cybersyn keys, macros) are disabled and show a toast.
+- arm64 only.
+
+> ⚠️ **Gesture (swipe) typing will not work without an additional gesture library.** Like
+> HeliBoard, SpectreBoard can't ship Google's closed-source glide typing library. If you already
+> use it with HeliBoard, load the same file in *Settings → Advanced → Load gesture typing
+> library*; see the [HeliBoard wiki](https://github.com/HeliBorg/HeliBoard/wiki) for details.
+> Until then, tap typing works and swipe typing is unavailable.
+
 ## Table of Contents
 
 - [Features](#features)

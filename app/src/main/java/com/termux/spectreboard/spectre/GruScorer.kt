@@ -61,6 +61,7 @@ object GruScorer {
             wordToIdx = buildMap(lines.size) {
                 lines.forEachIndexed { idx, w -> put(w.lowercase(), idx) }
             }
+            PublicBuild.ensureBundledModel(context, ONNX_FILENAME)
             val modelPath = "${context.filesDir.absolutePath}/$ONNX_FILENAME"
             val options = OrtSession.SessionOptions().apply {
                 addXnnpack(mapOf())

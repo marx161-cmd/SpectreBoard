@@ -2,6 +2,7 @@ package com.termux.spectreboard.spectre.neural
 
 import android.content.Context
 import android.util.Log
+import com.termux.spectreboard.spectre.PublicBuild
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -17,6 +18,7 @@ object GestureAbLogger {
     }
 
     fun log(googleTop: String, neuralTop: String, neuralTop3: String, googleAll: List<String>, trajectoryPoints: Int) {
+        if (PublicBuild.enabled) return // public test build never persists typing (scope.md 2026-10-27)
         val f = file ?: return
         try {
             val entry = JSONObject().apply {

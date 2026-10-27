@@ -65,6 +65,7 @@ object KenLmScorer {
         if (loaded || !nativeAvailable) return
         if (!loading.compareAndSet(false, true)) return
         try {
+            PublicBuild.ensureBundledModel(context, MODEL_FILENAME)
             val modelPath = "${context.filesDir.absolutePath}/$MODEL_FILENAME"
             val ok = initNative(modelPath)
             synchronized(lock) { loaded = ok }
