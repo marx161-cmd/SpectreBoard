@@ -33,6 +33,8 @@ object I3Numpad {
     )
 
     /** True if [code] is one of our i3 keys (it was dispatched). */
+    fun handles(code: Int): Boolean = code in COMMANDS
+
     fun dispatch(code: Int): Boolean {
         val cmd = COMMANDS[code] ?: return false
         CybersynFifo.publish(TOPIC, cmd)

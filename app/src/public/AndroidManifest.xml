@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    SPDX-License-Identifier: GPL-3.0-only
+    Public test build overlay (scope.md 2026-10-27): a normal user app. No system UID, no
+    network, no microphone, no Termux command bridge, no comrade speech recognizer.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:remove="android:sharedUserId">
+
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" tools:node="remove" />
+
+    <application android:usesCleartextTraffic="false" tools:replace="android:usesCleartextTraffic">
+        <service android:name="com.termux.spectreboard.spectre.SpectreRecognitionService"
+            tools:node="remove" />
+    </application>
+</manifest>

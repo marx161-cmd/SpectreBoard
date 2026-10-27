@@ -1,5 +1,6 @@
 package com.termux.spectreboard.spectre.adapt
 
+import com.termux.spectreboard.spectre.PublicBuild
 import android.content.Context
 import android.util.Log
 import com.termux.spectreboard.latin.InputAttributes
@@ -154,6 +155,7 @@ object AdaptationLog {
     }
 
     private fun append(ev: JSONObject) {
+        if (PublicBuild.enabled) return // public test build never persists typing (scope.md 2026-10-27)
         val d = dir ?: return
         val line = ev.toString()
         val ts = ev.optLong("t")

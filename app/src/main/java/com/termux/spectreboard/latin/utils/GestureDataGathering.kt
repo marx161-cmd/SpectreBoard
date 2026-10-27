@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package com.termux.spectreboard.latin.utils
+import com.termux.spectreboard.spectre.PublicBuild
 import com.termux.spectreboard.latin.R
 
 import android.content.Context
@@ -246,6 +247,7 @@ class WordData(
     private val timestamp = System.currentTimeMillis()
 
     fun save(context: Context) {
+        if (PublicBuild.enabled) return // public test build never persists typing (scope.md 2026-10-27)
         GestureDataGatheringSettings.onTrySaveData(context.prefs())
         if (!isSavingOk(context))
             return

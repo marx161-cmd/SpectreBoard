@@ -21,6 +21,7 @@ import com.termux.spectreboard.spectre.CybersynControl
 import com.termux.spectreboard.spectre.AmdMode
 import com.termux.spectreboard.spectre.DirectInputMode
 import com.termux.spectreboard.spectre.I3Numpad
+import com.termux.spectreboard.spectre.PublicBuild
 import com.termux.spectreboard.spectre.WhisperRecognizer
 import com.termux.spectreboard.spectre.PieceDictation
 import com.termux.spectreboard.spectre.exec.ExecutionMode
@@ -114,6 +115,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
     }
 
     override fun onCodeInput(primaryCode: Int, x: Int, y: Int, isKeyRepeat: Boolean) {
+        if (PublicBuild.enabled && PublicBuild.isHomelabOnly(primaryCode)) {
+            PublicBuild.showUnavailable(latinIME)
+            return
+        }
         // i3 numpad keys act on comrade regardless of AMD mode (dedicated remote keys).
         if (I3Numpad.dispatch(primaryCode)) return
         // AMD mode: forward text/keys to comrade. The toggle key passes through so it can turn

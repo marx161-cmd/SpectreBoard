@@ -446,3 +446,21 @@ request**: "i liked the black backdrop the glitches when typing are perfect that
 The shader now draws NOTHING at rest (stock black keyboard) and only the local per-key
 bubble + scar when a key is pressed. `LOCAL_R`, `WAVE_SPEED`, the scar and the JDSP/beat
 inputs are unchanged. This is the look to protect when tuning further.
+
+## 2026-10-27 — public test build (`public` build type) for outside testers
+
+Trigger: woj-tek asked on HeliBoard discussion #2912 for SpectreBoard test builds. User OK'd
+a separate public build; personal models may be public, **sensitive data may not**.
+
+Decided:
+- New build type `public` (initWith release), package `com.termux.spectreboard.test`, so it
+  installs next to the system keyboard. `assembleRelease` / the Pixel's own keyboard unchanged.
+- `BuildConfig.PUBLIC_BUILD`: no keystroke persistence (WordData.save + AdaptationLog.append
+  return early); homelab-only keys show a toast instead of acting (dictation, read-aloud,
+  AMD mode/control, Cybersyn, i3 numpad, exec local/remote, number-row macros).
+- Manifest overlay: no `sharedUserId=android.uid.system`, no RUN_COMMAND / INTERNET /
+  RECORD_AUDIO, no SpectreRecognitionService.
+- APK excludes `libLiteRtDispatch_GoogleTensor.so` + `libwhisper_g5_worker.so` (unused; not
+  redistributable). Own signing key (not the Termux platform key).
+- `gru_vocab.txt`: sensitive lines (IPs, tailnet, Wi-Fi MAC iface, user@host prompts)
+  replaced IN PLACE with `<redacted_N>` — line index == token ID, so no deletions.

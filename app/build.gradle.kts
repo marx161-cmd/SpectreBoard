@@ -16,6 +16,14 @@ android {
             keyAlias = project.findProperty("TERMUX_KEY_ALIAS") as String
             keyPassword = project.findProperty("TERMUX_KEY_PASSWORD") as String
         }
+        // Public test builds for outside testers (scope.md 2026-10-27): own key, never the
+        // Termux platform key. Optional so a checkout without the properties still configures.
+        create("public") {
+            (project.findProperty("SPECTRE_PUBLIC_KEYSTORE") as String?)?.let { storeFile = file(it) }
+            storePassword = project.findProperty("SPECTRE_PUBLIC_STORE_PASSWORD") as String?
+            keyAlias = project.findProperty("SPECTRE_PUBLIC_KEY_ALIAS") as String?
+            keyPassword = project.findProperty("SPECTRE_PUBLIC_KEY_PASSWORD") as String?
+        }
     }
 
     compileSdk = 36
@@ -34,6 +42,7 @@ android {
             abiFilters.add("arm64-v8a")
         }
         proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        buildConfigField("boolean", "PUBLIC_BUILD", "false")
     }
 
     buildTypes {
@@ -43,6 +52,16 @@ android {
             isDebuggable = false
             isJniDebuggable = false
             signingConfig = signingConfigs.getByName("termux")
+        }
+        // Public test build (scope.md 2026-10-27): installs next to the system keyboard, no system
+        // UID, no keystroke persistence, homelab-only keys disabled (see PublicBuild.kt).
+        create("public") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-public"
+            signingConfig = signingConfigs.getByName("public")
+            buildConfigField("boolean", "PUBLIC_BUILD", "true")
+            matchingFallbacks += "release"
         }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
             isMinifyEnabled = true
@@ -77,6 +96,11 @@ android {
                 //noinspection ProguardAndroidTxtUsage we intentionally use the "normal" file here
                 variant.proguardFiles.add(project.layout.buildDirectory.file(project.buildFile.parent + "/dontoptimize.pro"))
                 variant.proguardFiles.add(project.layout.buildDirectory.file(project.buildFile.parent + "/proguard-rules.pro"))
+            }
+            if (variant.buildType == "public") {
+                // unused here and not redistributable (Tensor SDK terms, see .gitignore)
+                variant.packaging.jniLibs.excludes.addAll(listOf(
+                    "**/libLiteRtDispatch_GoogleTensor.so", "**/libwhisper_g5_worker.so"))
             }
             variant.outputs.forEach { output ->
                 if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
