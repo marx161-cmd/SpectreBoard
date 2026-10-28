@@ -40,8 +40,8 @@ object NeuralShadow {
     /** Letter-row band (top, height) the model's y is normalised over, from the q and m key centres
      *  (CleverKeys CoordinateNormalizer); the whole keyboard if either key is missing. */
     fun qwertyBand(keyboard: Keyboard): Pair<Float, Float> {
-        val q = keyboard.sortedKeys.firstOrNull { it.code == 'q'.code }
-        val m = keyboard.sortedKeys.firstOrNull { it.code == 'm'.code }
+        val q = keyboard.sortedKeys.firstOrNull { it.code == 'q'.code || it.code == 'Q'.code } // shifted layout
+        val m = keyboard.sortedKeys.firstOrNull { it.code == 'm'.code || it.code == 'M'.code }
             ?: return 0f to keyboard.mOccupiedHeight.toFloat()
         if (q == null) return 0f to keyboard.mOccupiedHeight.toFloat()
         val rowHeight = ((m.y + m.height / 2f) - (q.y + q.height / 2f)) / 2f

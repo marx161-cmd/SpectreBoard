@@ -32,8 +32,8 @@ def word_tokens(word: str) -> list[int]:
 def qwerty_band(keys, full_height: float):
     """Letter-row band (top, height) in px from keyboardInfo keys, = NeuralShadow.qwertyBand (f32, same order)."""
     f32 = np.float32
-    q = next((k for k in keys if k.get("value") == "q"), None)
-    m = next((k for k in keys if k.get("value") == "m"), None)
+    q = next((k for k in keys if k.get("value") in ("q", "Q")), None)   # Q/M: shifted layout
+    m = next((k for k in keys if k.get("value") in ("m", "M")), None)
     if q is None or m is None:
         return f32(0), f32(full_height)
     qc = f32(q["top"]) + f32(q["height"]) / f32(2)

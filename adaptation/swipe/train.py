@@ -6,12 +6,15 @@ HOLDOUT fraction by time, never trained on. Reports top-1 word accuracy on that 
   google  — Google's first suggestion (the teacher, what the user sees today)
   base    — the shipped model (float twin of the ONNX, see onnx_import.py)
   tuned   — after fine-tuning
-Usage: train.py --db heliboard.db [--out ~/kenlm/swipe/runs/<date>] [--epochs 6]
+--synth N adds N synthetic swipes of the user's corpus words on their real layouts (synth_personal.py);
+those words also join the vocab. The held-out set stays real swipes only.
+Usage: train.py --db heliboard.db [--out ~/kenlm/swipe/runs/<date>] [--epochs 6] [--synth 50000]
 """
 import argparse
 import datetime as dt
 import json
 import random
+import sqlite3
 import time
 from pathlib import Path
 
@@ -20,6 +23,7 @@ import torch
 from torch import nn
 
 import gesture_db
+import synth_personal
 from beam import Trie, decode
 from features import extract, word_tokens
 from model import EOS, MAX_WORD, PAD, SOS, SwipeModel
@@ -82,6 +86,7 @@ def main():
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--holdout", type=float, default=0.1)
     ap.add_argument("--eval-limit", type=int, default=None, help="cap beam-search eval samples (speed)")
+    ap.add_argument("--synth", type=int, default=0, help="synthetic swipes of corpus words to add to training")
     a = ap.parse_args()
     torch.manual_seed(0); random.seed(0)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
@@ -93,7 +98,18 @@ def main():
     print(f"db: {stats} | train {len(train_s)} / held-out {len(test_s)} (newest)")
 
     # vocab the trie allows: shipped list + every a-z word the user has actually swiped (train part)
-    vocab = sorted({w.strip().lower() for w in EN_VOCAB.read_text().splitlines()} | {s.word for s in train_s})
+    vocab = {w.strip().lower() for w in EN_VOCAB.read_text().splitlines()} | {s.word for s in train_s}
+    synth_s = []
+    if a.synth:
+        counts = synth_personal.word_counts()
+        con = sqlite3.connect(f"file:{a.db}?mode=ro", uri=True)
+        layouts = [json.loads(k) for (k,) in con.execute(
+            "SELECT json_extract(DATA,'$.keyboardInfo') FROM GESTURE_DATA WHERE json_extract(DATA,'$.inputStyle')=3")]
+        con.close()
+        synth_s = synth_personal.make(a.synth, layouts, counts)
+        vocab |= set(counts)
+        print(f"synth: {len(synth_s)} swipes from {len(counts)} corpus words")
+    vocab = sorted(vocab)
     trie = Trie(vocab)
     (out / "swipe_vocab.txt").write_text("\n".join(vocab) + "\n")
 
@@ -108,7 +124,7 @@ def main():
     print(f"held-out top-1: google {google:.3f} (label in google list {in_list:.3f}) | base model {base_acc:.3f}"
           f"  [{time.time() - t0:.0f}s]")
 
-    Ttr, Tte = tensors(train_s), tensors(test_s)
+    Ttr, Tte = tensors(train_s + synth_s), tensors(test_s)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.01)
     best = (val_loss(model, Tte, device), 0)
     torch.save(model.state_dict(), out / "tuned.pt")
@@ -127,7 +143,7 @@ def main():
     model.load_state_dict(torch.load(out / "tuned.pt", map_location=device))
     tuned_acc, preds = top1(model, test_s, trie, device, a.eval_limit)
     report = {"date": dt.datetime.now().isoformat(timespec="seconds"), "db_stats": stats,
-              "train": len(train_s), "heldout": len(test_s), "best_epoch": best[1], "best_val_loss": best[0],
+              "train": len(train_s), "synth": len(synth_s), "heldout": len(test_s), "best_epoch": best[1], "best_val_loss": best[0],
               "top1": {"google": google, "base": base_acc, "tuned": tuned_acc},
               "label_in_google_list": in_list, "eval_limit": a.eval_limit}
     (out / "report.json").write_text(json.dumps(report, indent=2))
