@@ -42,6 +42,14 @@ public final class BeatSource {
     private static final File GO = new File(ShaderPaths.QS_DIR, "go.txt");
     private static final File OFFSET = new File(ShaderPaths.QS_DIR, "beat_offset_ms.txt");
     private static final String MIRROR_PKG = "com.termux.cybersyn";
+    // 2026-11-08: comrade's card moved from Cybersyn into the Float player (session tag "comrade")
+    private static final String FLOAT_PKG = "com.termux.window", FLOAT_MIRROR_TAG = "comrade";
+
+    /** comrade's mirrored player: no usable position, the go signal carries the song instead. */
+    private static boolean isMirror(MediaController c) {
+        String pkg = c.getPackageName();
+        return MIRROR_PKG.equals(pkg) || (FLOAT_PKG.equals(pkg) && FLOAT_MIRROR_TAG.equals(c.getTag()));
+    }
     private static final double FULL_COVERAGE = 0.90;
     private static final double CONF_MIN = 0.10;
     private static final double DURATION_TOL_S = 2.0;
@@ -125,7 +133,7 @@ public final class BeatSource {
         try {
             MediaSessionManager msm = ctx.getSystemService(MediaSessionManager.class);
             for (MediaController c : msm.getActiveSessions(null)) {
-                if (MIRROR_PKG.equals(c.getPackageName())) continue;
+                if (isMirror(c)) continue;
                 PlaybackState s = c.getPlaybackState();
                 if (s != null && s.getState() == PlaybackState.STATE_PLAYING) {
                     playing = c;
