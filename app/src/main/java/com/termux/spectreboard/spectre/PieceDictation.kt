@@ -13,6 +13,7 @@ import android.media.MediaCodec
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.MediaRecorder
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
@@ -71,6 +72,17 @@ object PieceDictation {
     private const val NOTIF_ID = 0xD1C7
     private const val FAIL_NOTIF_ID = 0xD1C9
 
+    /**
+     * Dictation state carried on the notification for shaderfx's camera ring (user 2026-11-09: on/off, no
+     * countdown; red while dictating, grey while working, green flash when the text comes back).
+     */
+    private const val EXTRA_STATE = "dev.marx.dictation.state"
+    private const val ST_REC = "rec"
+    private const val ST_BUSY = "busy"
+    private const val ST_DONE = "done"
+    private const val ST_FAIL = "fail"
+    private const val END_HOLD_MS = 900L     // "done"/"fail" stays posted this long so the ring can flash
+
     private val main = Handler(Looper.getMainLooper())
 
     /** Single source of truth for the toolbar light AND the toggle decision. */
@@ -92,9 +104,10 @@ object PieceDictation {
     private var onState: (() -> Unit)? = null
     private var session: Session? = null
 
-    private val notifTick = Runnable { tickNotification() }
+    private val endCancel = Runnable { if (!isRecording && !isFinishing) cancelRecordingNotification() }
 
-    private class Piece(val seq: Int, val file: File)
+    /** [pcm] set = freshly cut, not yet encoded (the upload thread encodes it into [file]). */
+    private class Piece(val seq: Int, val file: File, val pcm: ShortArray? = null)
 
     private class Session(val id: String, val dir: File) {
         val queue = LinkedBlockingQueue<Piece>()   // seq = -1 marks the end of the recording
@@ -132,7 +145,7 @@ object PieceDictation {
         val minBuf = AudioRecord.getMinBufferSize(SR, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         val rec = try {
             AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SR,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, SR * 2))
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf, SR * 2 * 4))  // 4 s of slack
         } catch (e: Exception) { Log.e(TAG, "AudioRecord ctor failed", e); null }
         if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
             rec?.release()
@@ -178,11 +191,11 @@ object PieceDictation {
         var quietRun = 0
         var seq = 0
 
+        // Never encode here: this thread must keep reading the mic. Encoding a 20 s piece took
+        // ~10 s on the phone, the mic buffer overflowed meanwhile, and speech from ~21 s to
+        // ~31 s was lost (2026-11-09, every long dictation since 10-17). The upload thread encodes.
         fun cut(samples: Int) {
-            val pcm = piece.copyOf(samples)
-            val f = File(s.dir, "$seq.piece")
-            if (!encodeOpus(pcm, f)) writeWav(pcm, f)
-            s.queue.put(Piece(seq, f))
+            s.queue.put(Piece(seq, File(s.dir, "$seq.piece"), piece.copyOf(samples)))
             s.piecesCut = seq + 1
             seq++
         }
@@ -246,13 +259,13 @@ object PieceDictation {
         while (true) {
             val p = s.queue.take()
             if (p.seq < 0) break
+            if (p.pcm != null && !encodeOpus(p.pcm, p.file)) writeWav(p.pcm, p.file)
             if (s.failed) continue                   // keep remaining files for recovery
             val text = sendWithRetry(s.id, p)
             if (text == null) { s.failed = true; continue }
             synchronized(s.texts) { s.texts[p.seq] = text }
             p.file.delete()
             s.piecesDone++
-            if (isRecording) updateNotificationText("${s.piecesDone} piece${if (s.piecesDone == 1) "" else "s"} done")
         }
         val full = synchronized(s.texts) { s.texts.values.filter { it.isNotBlank() }.joinToString(" ").trim() }
         main.post { finish(ctx, s, full, commit) }
@@ -262,7 +275,11 @@ object PieceDictation {
 
     private fun finish(ctx: Context, s: Session, full: String, commit: (String) -> Unit) {
         isFinishing = false
-        cancelRecordingNotification()
+        showEndNotification(ctx, when {
+            s.failed -> ST_FAIL
+            full.isEmpty() -> null
+            else -> ST_DONE
+        })
         onState?.invoke()
         if (s.failed) {
             failNotification(ctx, "Couldn't reach comrade — dictation saved. It'll be recovered to the clipboard next time you dictate.")
@@ -407,19 +424,25 @@ object PieceDictation {
                         }
                     }
                 }
-                val o = codec.dequeueOutputBuffer(info, 10_000)
-                if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                    track = muxer.addTrack(codec.outputFormat)
-                    muxer.start()
-                } else if (o >= 0) {
-                    val ob = codec.getOutputBuffer(o)!!
-                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
-                    if (info.size > 0 && track >= 0) {
-                        ob.position(info.offset); ob.limit(info.offset + info.size)
-                        muxer.writeSampleData(track, ob, info)
+                // Drain every ready output. Waiting only once all input is queued: a 10 ms wait
+                // per input buffer made a 20 s piece take ~10 s to encode.
+                while (!outputDone) {
+                    val o = codec.dequeueOutputBuffer(info, if (inputDone) 10_000L else 0L)
+                    if (o == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        track = muxer.addTrack(codec.outputFormat)
+                        muxer.start()
+                    } else if (o >= 0) {
+                        val ob = codec.getOutputBuffer(o)!!
+                        if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
+                        if (info.size > 0 && track >= 0) {
+                            ob.position(info.offset); ob.limit(info.offset + info.size)
+                            muxer.writeSampleData(track, ob, info)
+                        }
+                        codec.releaseOutputBuffer(o, false)
+                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
+                    } else if (o == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        break
                     }
-                    codec.releaseOutputBuffer(o, false)
-                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
                 }
             }
             muxer.stop()
@@ -461,32 +484,30 @@ object PieceDictation {
         }
     }
 
-    @Volatile private var notifText = "Listening — tap mic again to stop"
+    private fun stateExtras(state: String) = Bundle().apply { putString(EXTRA_STATE, state) }
 
-    private fun buildAndNotify(ctx: Context, progress: Int, text: String) {
+    /** On/off only (user 2026-11-09): no progress bar, no countdown, so there's no clock to race. */
+    private fun showRecordingNotification(ctx: Context) {
+        main.removeCallbacks(endCancel)
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
-        val n = Notification.Builder(ctx, CHAN)
+        nm.notify(NOTIF_ID, Notification.Builder(ctx, CHAN)
             .setSmallIcon(R.drawable.sym_keyboard_voice_rounded)
             .setContentTitle("Dictating…")
-            .setContentText(text)
+            .setContentText("Tap mic again to stop")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setColor(Color.RED)
             .setColorized(true)
-            .setProgress(62, progress, false)        // 30 s countdown, see tickNotification
-            .setCategory(Notification.CATEGORY_PROGRESS)
-            .build()
-        nm.notify(NOTIF_ID, n)
+            .addExtras(stateExtras(ST_REC))
+            .build())
     }
 
     /**
-     * After the stop tap: a visibly different notification — grey instead of red, a
-     * "stopped" title and an indeterminate bar instead of the advancing one — so it's clear at
-     * a glance that the mic is off and only the text is still on its way (user ask 2026-10-17).
+     * After the stop tap: grey instead of red and a "stopped" title, so it's clear at a glance that the
+     * mic is off and only the text is still on its way (user ask 2026-10-17).
      */
     private fun showFinishingNotification(ctx: Context) {
-        main.removeCallbacks(notifTick)
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         ensureChannel(nm)
         nm.notify(NOTIF_ID, Notification.Builder(ctx, CHAN)
@@ -496,40 +517,27 @@ object PieceDictation {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setColor(Color.GRAY)
-            .setProgress(0, 0, true)                 // indeterminate: clearly not "recording"
-            .setCategory(Notification.CATEGORY_PROGRESS)
+            .addExtras(stateExtras(ST_BUSY))
             .build())
     }
 
-    /**
-     * 30-second countdown that repeats (user ask 2026-10-17), so the length of Whisper's
-     * 30 s window can be judged by eye. Half-second steps on a 0..62 scale, kept within
-     * 2..61 so the bar never reads exactly 0% or 100% (keeps the punch-hole ring showing).
-     */
-    private fun tickNotification() {
-        val ctx = appContext ?: return
-        if (!isRecording) return
-        val halfSecs = ((System.currentTimeMillis() - recordStartMs) / 500).toInt()
-        val inCycle = halfSecs % 60                  // 0..59 half-seconds into this 30 s cycle
-        val secsLeft = 30 - inCycle / 2
-        buildAndNotify(ctx, 61 - inCycle, "${secsLeft}s · $notifText")
-        main.postDelayed(notifTick, 500)
+    /** Text is back (done) or comrade failed (fail): posted briefly so the ring can flash, then cleared. */
+    private fun showEndNotification(ctx: Context, state: String?) {
+        if (state == null) { cancelRecordingNotification(); return }
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        ensureChannel(nm)
+        nm.notify(NOTIF_ID, Notification.Builder(ctx, CHAN)
+            .setSmallIcon(R.drawable.sym_keyboard_voice_rounded)
+            .setContentTitle(if (state == ST_DONE) "Dictation typed" else "Dictation not typed")
+            .setOnlyAlertOnce(true)
+            .setColor(if (state == ST_DONE) Color.GREEN else Color.RED)
+            .addExtras(stateExtras(state))
+            .build())
+        main.removeCallbacks(endCancel)
+        main.postDelayed(endCancel, END_HOLD_MS)
     }
-
-    @Volatile private var recordStartMs = 0L
-
-    private fun showRecordingNotification(ctx: Context) {
-        notifText = "tap mic again to stop"
-        recordStartMs = System.currentTimeMillis()
-        main.removeCallbacks(notifTick)
-        buildAndNotify(ctx, 61, "30s · $notifText")
-        main.postDelayed(notifTick, 500)
-    }
-
-    private fun updateNotificationText(text: String) { notifText = text }
 
     private fun cancelRecordingNotification() {
-        main.removeCallbacks(notifTick)
         val c = appContext ?: return
         try { (c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIF_ID) } catch (_: Exception) {}
     }

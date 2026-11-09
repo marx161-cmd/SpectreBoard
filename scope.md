@@ -528,3 +528,25 @@ google / base / tuned; trie vocab = en.txt + the user's own a-z swiped words; `e
 float32 ONNX with the phone's exact I/O contract (no int8). Base weights: ~/kenlm/swipe/.
 Verified on synthetic data only (synth.py); real numbers need the pushed heliboard.db.
 Limitation: model alphabet is a-z, so umlaut words can't be learned by this model.
+
+## 2026-11-09 — Dictation lost speech from ~21 s to ~31 s (fix built + installed, awaiting voice test)
+
+User: "if I do close to 30 s or longer it loses half the text". Evidence on comrade (`~/.cache/dictate/`):
+every recording longer than ~21 s since 10-17 was piece 0 (~20 s) + piece 1 of exactly ~0.98 s, and piece 0
+reached comrade ~11-12 s after its cut. Cause: the capture thread Opus-encoded each piece itself, which took
+~10 s (encoder loop waited 10 ms per input buffer), while the AudioRecord buffer held only 1 s. Speech in
+that window was dropped; piece 1 was just the last buffer read after the stop tap.
+Fix (PieceDictation.kt): capture thread only queues raw PCM; the upload thread encodes then sends; mic
+buffer 4 s; encoder drains output without waiting until all input is queued. Installed 19:09 via
+blazer-sysapp-update (temporary ledger tier). Not committed until the user confirms a 40 s+ dictation.
+
+## 2026-11-09 (later) — Long dictation fix CONFIRMED; notification is on/off only, ring shows the state
+
+- Fix above confirmed by the user's own 58 s dictation (3 full pieces: 22.6 + 20.3 + 15.5 s, nothing lost).
+- User: drop the 30 s countdown ("I'm still trying to time it so I'm under 30"); dictation is continuous now,
+  so the notification is just on/off. Red while dictating, grey while working, green flash when the text
+  comes back. Drawn by shaderfx's camera ring (shaderfx/scope.md 2026-11-09 dictation entry).
+- Built: no progress bar, no countdown tick, no "N pieces done" text. Every dictation notification carries
+  extra `dev.marx.dictation.state` = rec | busy | done | fail. done/fail stay posted 900 ms (so the ring can
+  flash), then clear; "no speech heard" clears straight away. Installed 19:17, awaiting the user's look.
+  Side effect: without a progress value the crDroid island no longer promotes the dictation notification.
