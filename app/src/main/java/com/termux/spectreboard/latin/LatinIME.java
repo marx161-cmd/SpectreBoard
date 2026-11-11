@@ -550,6 +550,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onCreate() {
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.reset(this);   // a restarted IME never strands her down
         mSettings.startListener();
         KeyboardIconsSet.Companion.getInstance().loadIcons(this);
         mRichImm = RichInputMethodManager.getInstance();
@@ -868,6 +869,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onStartInputView(final EditorInfo editorInfo, final boolean restarting) {
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.shown();
         // cybersyn/hid/keyboard_visible used to be published from here, but this fires for
         // EVERY app's text field (SpectreBoard is the system default IME), not just Diana's
         // stream -- popped the host-side i3 keyboard-spacer for unrelated typing anywhere on
@@ -878,7 +880,15 @@ public class LatinIME extends InputMethodService implements
     }
 
     @Override
+    public void onUpdateCursorAnchorInfo(final android.view.inputmethod.CursorAnchorInfo info) {
+        super.onUpdateCursorAnchorInfo(info);
+        if (isInputViewShown()) com.termux.spectreboard.spectre.NekoCursor.INSTANCE.onAnchor(this, info);   // shaderfx neko (scope 2026-11-11)
+        else com.termux.spectreboard.spectre.NekoCursor.INSTANCE.gone(this);
+    }
+
+    @Override
     public void onFinishInputView(final boolean finishingInput) {
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.gone(this);
         StatsUtils.onFinishInputView();
         mHandler.onFinishInputView(finishingInput);
         mStatsUtilsManager.onFinishInputView();
@@ -888,6 +898,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onFinishInput() {
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.gone(this);
         mHandler.onFinishInput();
         BackgroundGatheringCache.saveOrClear(this);
     }
@@ -1101,6 +1112,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowShown() {
         super.onWindowShown();
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.shown();
         if (isInputViewShown()) {
             if (mInputView != null && Settings.getValues().mIsFloatingKeyboard)
                 FloatingKeyboardUtils.setFloating(mInputView);
@@ -1112,6 +1124,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onWindowHidden() {
         super.onWindowHidden();
+        com.termux.spectreboard.spectre.NekoCursor.INSTANCE.gone(this);
         Log.i(TAG, "onWindowHidden");
         final MainKeyboardView mainKeyboardView = mKeyboardSwitcher.getMainKeyboardView();
         if (mainKeyboardView != null) {
