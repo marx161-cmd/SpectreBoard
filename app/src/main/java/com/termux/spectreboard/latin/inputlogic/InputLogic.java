@@ -80,7 +80,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class manages the input logic.
  */
-public final class InputLogic {
+public final class InputLogic implements com.termux.spectreboard.spectre.snippets.SnippetExpander.Host {
     private static final String TAG = InputLogic.class.getSimpleName();
     private static final char INLINE_EMOJI_SEARCH_MARKER = ':';
     private static final int[] EMPTY_CODE_POINTS = new int[0];
@@ -155,6 +155,7 @@ public final class InputLogic {
         mInputLogicHandler = new InputLogicHandler(mLatinIME.mHandler, this);
         mSuggest = new Suggest(dictionaryFacilitator);
         mDictionaryFacilitator = dictionaryFacilitator;
+        com.termux.spectreboard.spectre.snippets.SnippetExpander.setHost(this);
     }
 
     /**
@@ -1070,11 +1071,14 @@ public final class InputLogic {
         }
         resetComposingState(true /* alsoResetLastComposedWord: no autocorrect revert across this */);
         if (alreadyTyped > 0) mConnection.deleteTextBeforeCursor(alreadyTyped);
-        final String inserted = com.termux.spectreboard.spectre.snippets.SnippetExpander.render(match.getSnippet());
+        final com.termux.spectreboard.spectre.snippets.SnippetExpander.Prepared prepared =
+                com.termux.spectreboard.spectre.snippets.SnippetExpander.prepare(mLatinIME, match.getSnippet());
+        final String inserted = prepared.getShown();
         mConnection.commitText(inserted, 1);
         mSnippetTypedTrigger = typedTrigger;
         mSnippetInserted = inserted;
         mSnippetSelEnd = mConnection.getExpectedSelectionEnd();
+        if (prepared.isAsync()) trackSnippetAsync(prepared, inserted);
         mSpaceState = SpaceState.NONE;
         mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
         inputTransaction.setDidAffectContents();
@@ -1101,6 +1105,57 @@ public final class InputLogic {
         mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
         inputTransaction.setDidAffectContents();
         return true;
+    }
+
+    /**
+     * Step 2 (shell vars): [shown] was just committed ending at the cursor, with placeholders
+     * where command output goes. When the output is in, swap it for the final text — also if
+     * the user typed on (the typed tail is re-committed after it). Gives up if the text was
+     * deleted/reverted, the field changed, or the user moved away.
+     */
+    @Override
+    public void trackSnippetAsync(final com.termux.spectreboard.spectre.snippets.SnippetExpander.Prepared prepared,
+            final String shown) {
+        final int start = mConnection.getExpectedSelectionEnd() - shown.length();
+        if (start < 0) return;
+        final EditorInfo editorInfo = getCurrentInputEditorInfo();
+        final int fieldId = editorInfo == null ? 0 : editorInfo.fieldId;
+        final String pkg = editorInfo == null ? null : editorInfo.packageName;
+        com.termux.spectreboard.spectre.snippets.SnippetExpander.resolve(mLatinIME, prepared, finalText -> {
+            applySnippetAsync(shown, finalText, start, fieldId, pkg, SystemClock.uptimeMillis() + 10_000);
+            return kotlin.Unit.INSTANCE;
+        });
+    }
+
+    private void applySnippetAsync(final String shown, final String finalText, final int start,
+            final int fieldId, final String pkg, final long giveUpAt) {
+        final EditorInfo editorInfo = getCurrentInputEditorInfo();
+        if (editorInfo == null || editorInfo.fieldId != fieldId || !TextUtils.equals(editorInfo.packageName, pkg)) return;
+        if (!mConnection.isConnected()) return;
+        final int end = start + shown.length();
+        final int cursor = mConnection.getExpectedSelectionEnd();
+        if (cursor < end || cursor - end > 200) return;
+        if (mConnection.hasSelection() || mWordComposer.isComposingWord()) {
+            // don't break a word being typed: retry once it's committed (space / punctuation)
+            if (SystemClock.uptimeMillis() < giveUpAt)
+                mLatinIME.mHandler.postDelayed(() -> applySnippetAsync(shown, finalText, start, fieldId, pkg, giveUpAt), 150);
+            return;
+        }
+        final int span = cursor - start;
+        final CharSequence before = mConnection.getTextBeforeCursor(span, 0);
+        if (before == null || before.length() != span || !before.toString().startsWith(shown)) return;
+        final String tail = before.toString().substring(shown.length());
+        final boolean revertable = tail.isEmpty() && shown.equals(mSnippetInserted) && mSnippetSelEnd == end;
+        mConnection.beginBatchEdit();
+        mConnection.deleteTextBeforeCursor(span);
+        mConnection.commitText(finalText + tail, 1);
+        mConnection.endBatchEdit();
+        if (revertable) {
+            mSnippetInserted = finalText;
+            mSnippetSelEnd = mConnection.getExpectedSelectionEnd();
+        } else if (!tail.isEmpty()) {
+            mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD; // its offsets moved
+        }
     }
 
     private void clearSnippetRevert() {

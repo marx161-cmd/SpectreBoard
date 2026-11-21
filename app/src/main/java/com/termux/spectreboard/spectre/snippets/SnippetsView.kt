@@ -132,7 +132,7 @@ class SnippetsView @JvmOverloads constructor(
     private fun insert(snippet: Snippet, v: View) {
         feedback(v)
         val l = listener ?: return
-        SnippetExpander.insertFromPanel(snippet, l)
+        SnippetExpander.insertFromPanel(context, snippet, l)
         if (Settings.getValues().mAlphaAfterClipHistoryEntry)
             KeyboardSwitcher.getInstance().hideSnippets()
     }

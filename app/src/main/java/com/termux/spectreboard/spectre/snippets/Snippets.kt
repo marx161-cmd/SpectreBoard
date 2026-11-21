@@ -155,7 +155,17 @@ object SnippetRenderer {
             strftime(v.params["Format"] ?: "%x", nowMillis + offset * 1000L, locale)
         }
         "echo" -> v.params["Echo"]
-        else -> null
+        "random" -> choices(v).takeIf { it.isNotEmpty() }?.random()
+        else -> null // shell, clipboard (need the device), choice/form (need UI) -> resolver or placeholder
+    }
+
+    /** Params.Choices: a JSON array of strings (as exported) or one choice per line */
+    fun choices(v: SnippetVar): List<String> {
+        val raw = v.params["Choices"]?.trim() ?: return emptyList()
+        if (raw.startsWith("[")) runCatching {
+            return (Json.parseToJsonElement(raw) as JsonArray).mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+        }
+        return raw.lines().map { it.trim() }.filter { it.isNotEmpty() }
     }
 
     /**

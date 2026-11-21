@@ -76,6 +76,21 @@ class SnippetsTest {
         assertEquals("[hey]", SnippetRenderer.render(s, emptyList(), 0L, Locale.US))
     }
 
+    @Test fun randomPicksAChoice() {
+        val v = com.termux.spectreboard.spectre.snippets.SnippetVar("r", "random", mapOf("Choices" to "[\"a\",\"b\"]"))
+        val s = com.termux.spectreboard.spectre.snippets.Snippet(".r", "{{r}}", listOf(v), false)
+        val out = SnippetRenderer.render(s, emptyList(), 0L, Locale.US)
+        kotlin.test.assertTrue(out == "a" || out == "b", out)
+    }
+
+    @Test fun shellVarsAreAsyncAndUseResolver() {
+        val v = com.termux.spectreboard.spectre.snippets.SnippetVar("ip", "shell", mapOf("Cmd" to "echo 1"))
+        val s = com.termux.spectreboard.spectre.snippets.Snippet(".ip", "ip={{ip}}", listOf(v), false)
+        assertEquals(listOf("ip"), SnippetRenderer.asyncVars(s, emptyList()).map { it.name })
+        assertEquals("ip={{ip}}", SnippetRenderer.render(s, emptyList(), 0L, Locale.US))
+        assertEquals("ip=10.0.0.1", SnippetRenderer.render(s, emptyList(), 0L, Locale.US) { "10.0.0.1" })
+    }
+
     @Test fun literalPercent() {
         assertEquals("100% 5", SnippetRenderer.strftime("100%% %e", millis(2026, 1, 5, 0, 0), Locale.US))
     }

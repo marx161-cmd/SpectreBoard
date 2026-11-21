@@ -18,6 +18,14 @@
 - **Neural gesture engine** (CleverKeys ONNX) — AB testing logs + active candidate injection
 - **Gesture AB logger** — collects Google-vs-CleverKeys comparison data per swipe
 
+### Text snippets (2026-11-21, see scope.md)
+
+- Imports Expandroid (Espanso-style JSON) exports via the SNIPPETS panel's IMPORT button; inline expansion
+  before autocorrect, backspace reverts; panel = trigger + preview, tap inserts.
+- `shell` vars run through Termux (or comrade with `@comrade`) asynchronously; examples in
+  `tools/snippets/spectre-commands.json`.
+- Current APK: `SpectreBoard_4.0-alpha3-kbshader-release.apk` (versionCode 4003).
+
 ## Feature backlog (priority order)
 
 1. Post-swipe mixed suggestions — alternative readings + next-word prediction in suggestion strip

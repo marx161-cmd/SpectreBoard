@@ -1,0 +1,68 @@
+{
+  "globalVars": [],
+  "matches": [
+    {
+      "Trigger": ".ip",
+      "Replace": "{{ip}}",
+      "Vars": [
+        {
+          "Name": "ip",
+          "Type": "shell",
+          "Params": {
+            "Echo": null,
+            "Format": null,
+            "Offset": 0,
+            "Cmd": "ip -4 -o addr show wlan0 | awk '{print $4}' | cut -d/ -f1",
+            "Layout": null,
+            "Choices": null
+          }
+        }
+      ],
+      "Form": null,
+      "Form_Fields": null,
+      "Word": false
+    },
+    {
+      "Trigger": ".np",
+      "Replace": "{{np}}",
+      "Vars": [
+        {
+          "Name": "np",
+          "Type": "shell",
+          "Params": {
+            "Echo": null,
+            "Format": null,
+            "Offset": 0,
+            "Cmd": "dumpsys media_session | awk '/state=PlaybackState \\{state=PLAYING/{p=1;next} p&&/metadata:/{sub(/.*description=/,\"\");n=split($0,a,\", \");f=1;if(n>=2&&a[2]!=\"null\")print a[2]\" - \"a[1];else print a[1];exit} END{if(!f)print \"nothing playing\"}'",
+            "Layout": null,
+            "Choices": null
+          }
+        }
+      ],
+      "Form": null,
+      "Form_Fields": null,
+      "Word": false
+    },
+    {
+      "Trigger": ".gpu",
+      "Replace": "{{gpu}}",
+      "Vars": [
+        {
+          "Name": "gpu",
+          "Type": "shell",
+          "Params": {
+            "Echo": null,
+            "Format": null,
+            "Offset": 0,
+            "Cmd": "f=$(cat /sys/devices/platform/34f00000.gpu0/devfreq/*/cur_freq); sudo sh -c 'dumpsys gpu | awk \"/^Proc [0-9]+ total/{print \\$4, \\$2}\" | sort -rn | head -3 | while read b p; do n=$(tr \"\\0\" \"\\n\" < /proc/$p/cmdline | head -1); echo \"${n##*/} $((b/1048576))M\"; done' | paste -sd, - | sed 's/,/, /g' | { read t; echo \"GPU $((f/1000000)) MHz | $t\"; }",
+            "Layout": null,
+            "Choices": null
+          }
+        }
+      ],
+      "Form": null,
+      "Form_Fields": null,
+      "Word": false
+    }
+  ]
+}

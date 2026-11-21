@@ -105,6 +105,48 @@ class SpectreBoardExecutor(
     fun runLocal(rawText: String)  = dispatch(rawText, ExecutionMode.LOCAL)
     fun runRemote(rawText: String) = dispatch(rawText, ExecutionMode.COMRADE)
 
+    // ---------- captured run (snippet shell vars, scope.md 2026-11-21 step 2) ----------
+
+    /**
+     * Run [rawText] through the same Termux RUN_COMMAND + ssh path as runLocal/runRemote, but
+     * in the background (no tmux) and hand stdout back. Same DSL: a leading `@comrade` runs on
+     * comrade, `@local` (default) on the phone; `remote:` / `local:` are accepted as aliases.
+     * [onResult] runs on the main thread exactly once: trimmed stdout, "[err]" on a non-zero
+     * exit / Termux error, "[timeout]" after [timeoutLocalMs] / [timeoutRemoteMs].
+     */
+    fun capture(rawText: String, timeoutLocalMs: Long, timeoutRemoteMs: Long, onResult: (String) -> Unit) {
+        val parsed = CommandParser.parse(normaliseCaptureAliases(rawText), ExecutionMode.LOCAL)
+        if (parsed.command.isBlank()) { mainHandler.post { onResult(ERR) }; return }
+        val id = captureIds.incrementAndGet()
+        pendingCaptures[id] = onResult
+        mainHandler.postDelayed({ pendingCaptures.remove(id)?.invoke(TIMEOUT) },
+            if (parsed.mode.isRemote) timeoutRemoteMs else timeoutLocalMs)
+        // hard cap inside Termux too, so a hung command doesn't linger after we gave up
+        val script = if (parsed.mode.isRemote)
+            "timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=4 ${parsed.mode.sshUser}@${parsed.mode.sshHost} " +
+                singleQuote(parsed.command)
+        else "timeout 15 bash -c " + singleQuote(parsed.command)
+        val resultIntent = Intent(context, CaptureResultReceiver::class.java).putExtra(EXTRA_CAPTURE_ID, id)
+        val flags = android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (android.os.Build.VERSION.SDK_INT >= 31) android.app.PendingIntent.FLAG_MUTABLE else 0)
+        val pending = android.app.PendingIntent.getBroadcast(context, (id and 0x7fffffff).toInt(), resultIntent, flags)
+        val intent = Intent("com.termux.RUN_COMMAND").apply {
+            setClassName("com.termux", "com.termux.app.RunCommandService")
+            putExtra("com.termux.RUN_COMMAND_PATH", "$TERMUX_BIN/bash")
+            putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", script))
+            putExtra("com.termux.RUN_COMMAND_WORKDIR", TERMUX_HOME)
+            putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+            putExtra("com.termux.RUN_COMMAND_PENDING_INTENT", pending)
+        }
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
+        } catch (e: Exception) {
+            android.util.Log.w("SpectreExec", "capture: Termux service not started: ${e.javaClass.simpleName}")
+            pendingCaptures.remove(id)?.let { cb -> mainHandler.post { cb(ERR) } }
+        }
+    }
+
     // ---------- tmux dispatch ----------
 
     // Base64-encode the command so it survives every quoting layer intact.
@@ -193,5 +235,42 @@ class SpectreBoardExecutor(
 
     companion object {
         private const val CHANNEL = "spectreboard_exec"
+        const val EXTRA_CAPTURE_ID = "spectreboard_capture_id"
+        const val TIMEOUT = "[timeout]"
+        const val ERR = "[err]"
+        private const val MAX_OUTPUT = 2000
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        private val captureIds = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis() and 0xffffff)
+        private val pendingCaptures = java.util.concurrent.ConcurrentHashMap<Long, (String) -> Unit>()
+
+        internal fun normaliseCaptureAliases(raw: String): String {
+            val t = raw.trimStart()
+            return when {
+                t.startsWith("remote:") -> "@comrade " + t.removePrefix("remote:")
+                t.startsWith("local:") -> "@local " + t.removePrefix("local:")
+                else -> t
+            }
+        }
+
+        /** called by [CaptureResultReceiver] with Termux's plugin result bundle */
+        internal fun deliverCapture(id: Long, result: android.os.Bundle?) {
+            val cb = pendingCaptures.remove(id) ?: return // already timed out
+            val out = if (result == null) ERR else {
+                val exit = result.getInt("exitCode", -1)
+                val err = result.getInt("err", -1) // Termux: -1 = success
+                val stdout = result.getString("stdout").orEmpty().trim()
+                if (err != -1 || exit != 0) ERR else stdout.take(MAX_OUTPUT)
+            }
+            mainHandler.post { cb(out) }
+        }
+    }
+}
+
+/** Receives Termux's RUN_COMMAND result (PendingIntent) for [SpectreBoardExecutor.capture]. */
+class CaptureResultReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val id = intent.getLongExtra(SpectreBoardExecutor.EXTRA_CAPTURE_ID, -1L)
+        if (id < 0) return
+        SpectreBoardExecutor.deliverCapture(id, intent.getBundleExtra("result"))
     }
 }

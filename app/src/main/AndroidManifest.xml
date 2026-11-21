@@ -113,6 +113,8 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
         <activity android:name="com.termux.spectreboard.spectre.snippets.SnippetImportActivity" android:exported="false"
             android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true"
             android:taskAffinity="" />
+        <!-- Termux RUN_COMMAND result for snippet shell vars (SpectreBoardExecutor.capture) -->
+        <receiver android:name="com.termux.spectreboard.spectre.exec.CaptureResultReceiver" android:exported="false" />
 
         <!-- Broadcast receivers -->
         <receiver android:name="SystemBroadcastReceiver"

@@ -602,3 +602,41 @@ export was pushed to `/sdcard/Download/ttconfig.json` for the user to pick.
   snippets" → type a trigger in any app → expands; backspace once → trigger back. Then switch Expandroid's
   accessibility service off (Settings → Accessibility → Expandroid) so the two don't both expand.
 OPEN: typing test on screen (user); step 2 (command-backed vars) below.
+CHANGED by step 2: the store is now one file per imported file NAME (see below), not one snippets.json.
+
+## 2026-11-21 (later) — Text snippets step 2: command-backed vars BUILT + installed (awaiting the user's test)
+
+APK sha256 `4fb71ec19d6cf4d3…` (same versionName/Code), installed 04:40 via blazer-sysapp-update.
+- **`shell` vars**: `{{name}}` with Type `shell` runs `Params.Cmd` via `SpectreBoardExecutor.capture` = the same
+  Termux RUN_COMMAND path as runLocal/runRemote, but background (no tmux) with a PendingIntent that returns
+  stdout (`CaptureResultReceiver`, exported=false). Trimmed stdout replaces the placeholder; non-zero exit /
+  Termux error → `[err]`; no answer in 3 s (local) / 5 s (comrade) → `[timeout]`. Inside Termux the command
+  is also hard-capped (`timeout 15` local, `timeout 20 ssh …` remote). Output capped at 2000 chars.
+- **Remote convention**: the Cmd text itself starts with `@comrade ` (the executor's existing DSL; `remote:`
+  is an alias, `@local` / `local:` optional). It lives inside Cmd, so it survives any export/import round trip.
+  Runs as `ssh -o BatchMode=yes -o ConnectTimeout=4 comrade@comrade '<cmd>'`.
+- **Never blocks**: the snippet goes in at once with `⋯` where each output belongs; when all commands
+  answered, InputLogic swaps in the final text — also if the user typed on (≤200 chars; the typed tail is
+  re-committed after it; waits while a word is still composing, gives up after 10 s). Gives up silently if the
+  text was deleted/reverted, the field or app changed, or the cursor moved before it. Backspace right after
+  still reverts (to the trigger) both while `⋯` is showing and after the output arrived (if nothing was typed
+  in between).
+- Also: `random` (pick from Params.Choices), `clipboard` (current clip), `echo`. `choice`/`form` need UI →
+  placeholder stays. Public build: shell vars never run (placeholder stays).
+- **Expandroid round trip**: Expandroid is a .NET MAUI app (com.dingleinc.texttoolspro); its editor appears to
+  offer Date / Random / Clipboard / Form vars only (strings in the APK; no "shell" found — not 100 % sure, the
+  assemblies are compressed). So command snippets come as a **second import file** instead.
+- **Store**: one file per imported file name, `files/snippets/<name>.json`; re-importing the same name replaces
+  that set, a same-named file with no matches removes it; sources merge (on a duplicate trigger the file name
+  that sorts last wins). Toast: "Imported N snippets from <name> (total M)".
+- **Examples** (synthetic, all phone-local): `tools/snippets/spectre-commands.json`, also pushed to
+  `/sdcard/Download/spectre-commands.json`. Commands measured over Termux ssh on the phone 04:38:
+  `.ip` Wi-Fi IPv4 (`ip -4 -o addr show wlan0`, ~0.3 s); `.np` now playing = first PLAYING session in
+  `dumpsys media_session` as "artist - title" (same source as pixel-nowplaying; titles with ", " mis-split),
+  ~0.25 s; `.gpu` PowerVR devfreq MHz + top-3 GPU memory users from `dumpsys gpu` (names via one `sudo`),
+  ~1.3 s, e.g. "GPU 396 MHz | com.termux.shadereditor 435M, …". No GPU busy-% node found under the gpu0
+  platform device (only devfreq cur_freq), so frequency stands in for load.
+- NOT verified on device: the Termux PendingIntent result actually arriving (needs a real keystroke in a
+  text field — the user's test). If `.ip` gives `[timeout]` every time, that is the place to look.
+- Side effect during probing (fixed): running ~/bin/pixel-nowplaying (python) for 5 s overwrote
+  ~/.local/share/pixel-nowplaying.pid; restored to the live Rust daemon's pid 2421.

@@ -36,7 +36,9 @@ class SnippetImportActivity : Activity() {
         val uri = data?.data
         if (requestCode == REQUEST && resultCode == RESULT_OK && uri != null) {
             val msg = try {
-                "Imported ${SnippetStore.import(this, uri)} snippets"
+                val r = SnippetStore.import(this, uri)
+                if (r.count == 0) "Removed snippets from ${r.source} (total ${r.total})"
+                else "Imported ${r.count} snippets from ${r.source} (total ${r.total})"
             } catch (e: kotlinx.serialization.SerializationException) {
                 "Snippet import failed: not a valid JSON export" // parser messages quote file content
             } catch (e: Exception) {
