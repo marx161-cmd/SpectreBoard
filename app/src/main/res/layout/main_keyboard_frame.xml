@@ -35,6 +35,9 @@
         <include
             android:id="@+id/clipboard_history_view"
             layout="@layout/clipboard_history_view" />
+        <include
+            android:id="@+id/snippets_view"
+            layout="@layout/snippets_view" />
 
         <ImageButton
             android:id="@+id/btn_stop_one_handed_mode"

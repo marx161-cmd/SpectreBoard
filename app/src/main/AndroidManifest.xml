@@ -109,6 +109,11 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
             android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true" android:noHistory="true"
             android:windowSoftInputMode="adjustResize|stateAlwaysVisible" android:configChanges="orientation|screenSize"/>
 
+        <!-- Text snippets import trampoline: SAF picker for the Expandroid export (scope.md 2026-11-21) -->
+        <activity android:name="com.termux.spectreboard.spectre.snippets.SnippetImportActivity" android:exported="false"
+            android:theme="@style/TransparentActivityTheme" android:excludeFromRecents="true"
+            android:taskAffinity="" />
+
         <!-- Broadcast receivers -->
         <receiver android:name="SystemBroadcastReceiver"
                 android:exported="true">

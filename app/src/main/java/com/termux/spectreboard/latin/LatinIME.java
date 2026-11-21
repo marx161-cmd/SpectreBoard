@@ -552,6 +552,7 @@ public class LatinIME extends InputMethodService implements
     public void onCreate() {
         com.termux.spectreboard.spectre.NekoCursor.INSTANCE.reset(this);   // a restarted IME never strands her down
         mSettings.startListener();
+        com.termux.spectreboard.spectre.snippets.SnippetStore.INSTANCE.init(this); // text snippets (scope.md 2026-11-21)
         KeyboardIconsSet.Companion.getInstance().loadIcons(this);
         mRichImm = RichInputMethodManager.getInstance();
         AudioAndHapticFeedbackManager.init(this);

@@ -1261,6 +1261,12 @@ New dictionary:
     <string name="background_gathering" tools:keep="@string/background_gathering">Background data gathering</string>
     <string name="exec_local" tools:keep="@string/exec_local">Run local</string>
     <string name="exec_remote" tools:keep="@string/exec_remote">Run remote</string>
+    <!-- Text snippets (scope.md 2026-11-21); "snippets" = toolbar key name -->
+    <string name="snippets" tools:keep="@string/snippets">Snippets</string>
+    <string name="snippets_title">Snippets (%d)</string>
+    <string name="snippets_import">IMPORT</string>
+    <string name="snippets_close">Close snippets</string>
+    <string name="snippets_empty">No snippets yet. Export from Expandroid, then tap IMPORT and pick the .json file.</string>
     <string name="whisper_mic" tools:keep="@string/whisper_mic">AMD-Control</string>
     <!-- Label for the internal voice-mode subtype used to route the standard mic key to the built-in Whisper engine, see method.xml -->
     <string name="subtype_voice_whisper" tools:keep="@string/subtype_voice_whisper">Voice input (Whisper)</string>

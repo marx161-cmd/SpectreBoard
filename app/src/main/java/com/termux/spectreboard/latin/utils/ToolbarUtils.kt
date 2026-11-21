@@ -111,6 +111,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     DIRECT_INPUT -> KeyCode.DIRECT_INPUT
     WHISPER_MIC -> KeyCode.AMD_CONTROL
     AMD_MODE -> KeyCode.AMD_MODE
+    SNIPPETS -> KeyCode.SNIPPETS
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -138,7 +139,7 @@ enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
     PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, EXEC_LOCAL, EXEC_REMOTE,
-    DIRECT_INPUT, WHISPER_MIC, AMD_MODE
+    DIRECT_INPUT, WHISPER_MIC, AMD_MODE, SNIPPETS
 }
 
 enum class ToolbarMode {
@@ -148,7 +149,7 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    val default = listOf(SETTINGS, VOICE, CLIPBOARD, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
+    val default = listOf(SETTINGS, VOICE, CLIPBOARD, SNIPPETS, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }

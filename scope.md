@@ -550,3 +550,55 @@ blazer-sysapp-update (temporary ledger tier). Not committed until the user confi
   extra `dev.marx.dictation.state` = rec | busy | done | fail. done/fail stay posted 900 ms (so the ring can
   flash), then clear; "no speech heard" clears straight away. Installed 19:17, awaiting the user's look.
   Side effect: without a progress value the crDroid island no longer promotes the dictation notification.
+
+## 2026-11-21 — Text snippets (planned, not started)
+
+User wants text expansion inside SpectreBoard (the only keyboard in use) instead of a second app listening.
+Decided with user:
+- **Expandroid stays as the snippet EDITOR only.** User edits + exports there; its accessibility service gets
+  switched off (frozen as an expander). No snippet editor UI in SpectreBoard.
+- **SpectreBoard imports Expandroid's export file** (JSON/whatever it writes — read a real export first, don't
+  guess the format) into its own store. Re-import replaces the set.
+- **Inline expansion** like Expandroid today: expand as soon as a trigger is complete (e.g. `.com` → ☭).
+  Takes priority over autocorrect (autocorrect must never "fix" a trigger); backspace right after = revert to the
+  typed trigger (reuse the autocorrect revert path).
+- **New toolbar key `SNIPPETS`** (ToolbarUtils.kt `ToolbarKey`): opens a panel like the clipboard-history panel
+  (a "second clipboard") listing all snippets (trigger + preview); tap inserts.
+- Build: assembleRelease as always.
+OPEN: get a real Expandroid export from the user (→ ~/drop or phone Download).
+
+## 2026-11-21 (later) — Text snippets step 1 BUILT + installed (awaiting the user's typing test)
+
+Built to the design above. APK `SpectreBoard_4.0-alpha3-kbshader-release.apk` (versionCode 4003, sha256
+`0949b23b7c1012a0…`), installed 04:30 via blazer-sysapp-update. IME restarted clean (no crash in logcat); the real
+export was pushed to `/sdcard/Download/ttconfig.json` for the user to pick.
+- **Store** (`spectre/snippets/SnippetStore.kt`): verbatim copy of the last good import in app-private
+  `files/snippets/snippets.json` (device-protected storage, since the app defaults to it). Re-import replaces
+  the set; a broken file keeps the old set. Snippet contents are never logged (only counts).
+- **Parser / matcher / renderer** (`Snippets.kt`, pure Kotlin, unit test `SnippetsTest` on a synthetic
+  fixture): Expandroid keys (Trigger/Replace/Vars/Word, case-insensitive key names); `date` vars via a small
+  strftime (`%%e` read as `%e` → 11/21/2026; Offset = seconds), `echo` vars, unknown types/names keep
+  `{{placeholder}}`. Word=true only expands after a non-letter/digit. Trigger match is case-insensitive
+  (auto-capitalised `.Mail` still expands; backspace restores what was typed).
+- **Inline expansion** (`InputLogic.tryExpandSnippet`): checked BEFORE the typed character is processed
+  (text before cursor + new char ends with a trigger) → composing word finished as typed (no autocorrect),
+  typed part deleted, rendered text committed. So autocorrect/separators never see a trigger. Not in password
+  fields, not in TYPE_NULL editors (Termux terminal: it gets key events, nothing to replace), not with a
+  selection or a pending phantom space. Expandroid-like: `.com` inside `example.com` expands too (Word=false).
+- **Revert**: backspace (not key-repeat) right after an expansion, cursor unmoved → typed trigger back. Own
+  small path (`revertSnippetExpansion`), not the autocorrect `revertCommit` (that one assumes a committed
+  word + separator); any other key/cursor move drops the revert.
+- **Panel**: toolbar key `SNIPPETS` (KeyCode -10065, Material "text_snippet" icon) toggles `SnippetsView`
+  in place of the keys (clipboard-panel height). Header: "Snippets (N)", IMPORT (opens
+  `SnippetImportActivity` → system file picker, JSON), close ×. Grid: trigger + one-line preview; tap inserts
+  the rendered text; closes afterwards if "ABC after clipboard entry" is on (same setting as the clipboard).
+  Added to the default toolbar for fresh installs; on this phone it was appended as disabled
+  (toolbar_keys / pinned_toolbar_keys `SNIPPETS:false`) → user enables it in Settings → Toolbar.
+- Files: `spectre/snippets/{Snippets,SnippetStore,SnippetExpander,SnippetsView,SnippetImportActivity}.kt`,
+  `res/layout/snippets_view.xml`, `res/drawable/sym_keyboard_snippets.xml`, InputLogic.java,
+  KeyboardSwitcher.java, KeyboardActionListenerImpl.kt, ToolbarUtils.kt, KeyCode.kt, KeyboardIconsSet.kt,
+  LatinIME.java (store init), main_keyboard_frame.xml, strings.xml, AndroidManifest.xml.
+- User test: enable Snippets key → open panel → IMPORT → Downloads/ttconfig.json → toast "Imported 44
+  snippets" → type a trigger in any app → expands; backspace once → trigger back. Then switch Expandroid's
+  accessibility service off (Settings → Accessibility → Expandroid) so the two don't both expand.
+OPEN: typing test on screen (user); step 2 (command-backed vars) below.

@@ -35,6 +35,8 @@ import androidx.annotation.Nullable;
 import com.termux.spectreboard.event.Event;
 import com.termux.spectreboard.keyboard.KeyboardLayoutSet.KeyboardLayoutSetException;
 import com.termux.spectreboard.keyboard.clipboard.ClipboardHistoryView;
+import com.termux.spectreboard.keyboard.internal.keyboard_parser.floris.KeyCode;
+import com.termux.spectreboard.latin.common.Constants;
 import com.termux.spectreboard.keyboard.emoji.EmojiPalettesView;
 import com.termux.spectreboard.keyboard.internal.KeyboardState;
 import com.termux.spectreboard.keyboard.internal.keyboard_parser.EmojiParserKt;
@@ -76,6 +78,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     private SuggestionStripView mSuggestionStripView;
     private FrameLayout mStripContainer;
     private ClipboardHistoryView mClipboardHistoryView;
+    private com.termux.spectreboard.spectre.snippets.SnippetsView mSnippetsView;
     private TextView mFakeToastView;
     private ImageView mBackgroundGatheringIndicator;
     private LatinIME mLatinIME;
@@ -346,6 +349,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mSuggestionStripView.setVisibility(stripVisibility);
         mClipboardHistoryView.setVisibility(View.GONE);
         mClipboardHistoryView.stopClipboardHistory();
+        hideSnippetsView();
     }
 
     // Implements {@link KeyboardState.SwitchActions}.
@@ -364,6 +368,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mClipboardStripScrollView.setVisibility(View.GONE);
         mEmojiTabStripView.setVisibility(View.VISIBLE);
         mClipboardHistoryView.setVisibility(View.GONE);
+        hideSnippetsView();
         mEmojiPalettesView.startEmojiPalettes(mKeyboardView.getKeyVisualAttribute(),
                 mLatinIME.getCurrentInputEditorInfo(), mLatinIME.mKeyboardActionListener);
         mEmojiPalettesView.setVisibility(View.VISIBLE);
@@ -386,6 +391,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mClipboardStripScrollView.post(() -> mClipboardStripScrollView.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
         mClipboardStripScrollView.setVisibility(View.VISIBLE);
         mEmojiPalettesView.setVisibility(View.GONE);
+        hideSnippetsView();
         mClipboardHistoryView.startClipboardHistory(mLatinIME.getClipboardHistoryManager(), mKeyboardView.getKeyVisualAttribute(),
                 mLatinIME.getCurrentInputEditorInfo(), mLatinIME.mKeyboardActionListener);
         mClipboardHistoryView.setVisibility(View.VISIBLE);
@@ -423,7 +429,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     }
 
     public KeyboardSwitchState getKeyboardSwitchState() {
-        boolean hidden = !isShowingEmojiPalettes() && !isShowingClipboardHistory()
+        boolean hidden = !isShowingEmojiPalettes() && !isShowingClipboardHistory() && !isShowingSnippets()
                 && (mKeyboardLayoutSet == null
                 || mKeyboardView == null
                 || !mKeyboardView.isShown());
@@ -680,6 +686,42 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         return mClipboardHistoryView != null && mClipboardHistoryView.isShown();
     }
 
+    // Snippets panel (scope.md 2026-11-21): an overlay in place of the main keyboard view, not a
+    // KeyboardState mode. Any real keyboard switch (setKeyboard / emoji / clipboard) hides it.
+    public boolean isShowingSnippets() {
+        return mSnippetsView != null && mSnippetsView.getVisibility() == View.VISIBLE;
+    }
+
+    public void toggleSnippets() {
+        if (isShowingSnippets()) hideSnippets();
+        else showSnippets();
+    }
+
+    public void showSnippets() {
+        if (mSnippetsView == null || mKeyboardView == null) return;
+        if (isShowingEmojiPalettes() || isShowingClipboardHistory()) {
+            // leave emoji / clipboard through the state machine so KeyboardState stays consistent
+            mLatinIME.mKeyboardActionListener.onCodeInput(KeyCode.ALPHA, Constants.NOT_A_COORDINATE, Constants.NOT_A_COORDINATE, false);
+        }
+        mKeyboardView.cancelAllOngoingEvents();
+        mKeyboardView.setVisibility(View.GONE);
+        mSnippetsView.start(mLatinIME.mKeyboardActionListener);
+        mSnippetsView.setVisibility(View.VISIBLE);
+    }
+
+    public void hideSnippets() {
+        if (!isShowingSnippets()) return;
+        hideSnippetsView();
+        mKeyboardView.setVisibility(View.VISIBLE);
+        PointerTracker.switchTo(mKeyboardView);
+    }
+
+    private void hideSnippetsView() {
+        if (mSnippetsView == null) return;
+        mSnippetsView.setVisibility(View.GONE);
+        mSnippetsView.stop();
+    }
+
     public boolean isShowingPopupKeysPanel() {
         if (isShowingEmojiPalettes() || isShowingClipboardHistory()) {
             return false;
@@ -700,6 +742,8 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
             return mEmojiPalettesView;
         } else if (isShowingClipboardHistory()) {
             return mClipboardHistoryView;
+        } else if (isShowingSnippets()) {
+            return mSnippetsView;
         }
         return mKeyboardView;
     }
@@ -760,6 +804,8 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mMainKeyboardFrame = mCurrentInputView.findViewById(R.id.main_keyboard_frame);
         mEmojiPalettesView = mCurrentInputView.findViewById(R.id.emoji_palettes_view);
         mClipboardHistoryView = mCurrentInputView.findViewById(R.id.clipboard_history_view);
+        if (mSnippetsView != null) mSnippetsView.stop();
+        mSnippetsView = mCurrentInputView.findViewById(R.id.snippets_view);
         mFakeToastView = mCurrentInputView.findViewById(R.id.fakeToast);
 
         mKeyboardViewWrapper = mCurrentInputView.findViewById(R.id.keyboard_view_wrapper);

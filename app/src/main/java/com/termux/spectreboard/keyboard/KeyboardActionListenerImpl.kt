@@ -163,6 +163,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
                 DirectInputMode.toggle(latinIME)
                 return
             }
+            KeyCode.SNIPPETS -> {
+                keyboardSwitcher.toggleSnippets()
+                return
+            }
             KeyCode.AMD_MODE -> {
                 AmdMode.toggle(latinIME)
                 latinIME.refreshToolbarButtonActivatedStates()

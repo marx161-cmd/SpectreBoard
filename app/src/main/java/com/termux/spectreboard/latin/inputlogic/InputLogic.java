@@ -106,6 +106,11 @@ public final class InputLogic {
     }
 
     public LastComposedWord mLastComposedWord = LastComposedWord.NOT_A_COMPOSED_WORD;
+    // Last inline snippet expansion (scope.md 2026-11-21), for backspace-reverts-expansion.
+    // Only valid while the cursor still sits right after the inserted text.
+    private String mSnippetTypedTrigger = null;
+    private String mSnippetInserted = null;
+    private int mSnippetSelEnd = -1;
     public CorrectionHistory mCorrectionHistory = new CorrectionHistory(8);
     // This has package visibility so it can be accessed from InputLogicHandler.
     /* package */ final WordComposer mWordComposer;
@@ -499,6 +504,10 @@ public final class InputLogic {
             final String currentKeyboardScript, final LatinIME.UIHandler handler) {
         mWordBeingCorrectedByCursor = null;
         mJustRevertedACommit = false;
+        final int snippetCode = event.getKeyCode();
+        if (snippetCode != KeyCode.DELETE && snippetCode != KeyCode.SHIFT && snippetCode != KeyCode.CAPS_LOCK
+                && snippetCode != KeyCode.SYMBOL_ALPHA && snippetCode != KeyCode.ALPHA && snippetCode != KeyCode.SYMBOL)
+            clearSnippetRevert();
 
         if (GestureDataGatheringKt.useBackgroundGathering && mConnection.hasSelection())
             BackgroundGatheringCache.INSTANCE.onEditSelection(mConnection.getSelectedText(0), mConnection.getTextBeforeCursor(40, 0), mConnection.getTextAfterCursor(40, 0));
@@ -975,6 +984,8 @@ public final class InputLogic {
             final InputTransaction inputTransaction,
             final LatinIME.UIHandler handler) {
         final int codePoint = event.getCodePoint();
+        // Text snippets: a completed trigger expands before autocorrect / separators see it.
+        if (tryExpandSnippet(codePoint, inputTransaction)) return;
         mSpaceState = SpaceState.NONE;
         final SettingsValues sv = inputTransaction.getSettingsValues();
 
@@ -1028,6 +1039,74 @@ public final class InputLogic {
             }
             handleNonSeparatorEvent(event, sv, inputTransaction);
         }
+    }
+
+    /**
+     * Inline snippet expansion (scope.md 2026-11-21). [codePoint] has not been inserted yet:
+     * if the text before the cursor plus it ends with a trigger, the typed part of the trigger
+     * is deleted and the rendered snippet committed instead. Composing state is dropped without
+     * autocorrect, so a trigger is never "corrected".
+     */
+    private boolean tryExpandSnippet(final int codePoint, final InputTransaction inputTransaction) {
+        if (codePoint == Constants.CODE_ENTER || codePoint <= 0) return false;
+        final com.termux.spectreboard.spectre.snippets.SnippetSet set =
+                com.termux.spectreboard.spectre.snippets.SnippetExpander.set();
+        final int max = set.getMaxTriggerLength();
+        if (max == 0) return false;
+        final SettingsValues sv = inputTransaction.getSettingsValues();
+        if (!com.termux.spectreboard.spectre.snippets.SnippetExpander.allowedIn(sv.mInputAttributes)) return false;
+        if (SpaceState.PHANTOM == inputTransaction.getSpaceState()) return false; // a space would go in first
+        if (mConnection.hasSelection()) return false;
+        if (mWordComposer.isComposingWord() && mWordComposer.isCursorFrontOrMiddleOfComposingWord()) return false;
+        final CharSequence before = mConnection.getTextBeforeCursor(max + 1, 0); // +1: word-boundary check
+        final String typedChar = StringUtils.newSingleCodePointString(codePoint);
+        final String text = (before == null ? "" : before.toString()) + typedChar;
+        final com.termux.spectreboard.spectre.snippets.SnippetMatch match = set.match(text);
+        if (match == null) return false;
+        final String typedTrigger = match.getTypedTrigger();
+        final int alreadyTyped = typedTrigger.length() - typedChar.length();
+        if (mWordComposer.isComposingWord()) {
+            mConnection.finishComposingText(); // keep the letters exactly as typed
+        }
+        resetComposingState(true /* alsoResetLastComposedWord: no autocorrect revert across this */);
+        if (alreadyTyped > 0) mConnection.deleteTextBeforeCursor(alreadyTyped);
+        final String inserted = com.termux.spectreboard.spectre.snippets.SnippetExpander.render(match.getSnippet());
+        mConnection.commitText(inserted, 1);
+        mSnippetTypedTrigger = typedTrigger;
+        mSnippetInserted = inserted;
+        mSnippetSelEnd = mConnection.getExpectedSelectionEnd();
+        mSpaceState = SpaceState.NONE;
+        mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+        inputTransaction.setDidAffectContents();
+        inputTransaction.requireShiftUpdate(InputTransaction.SHIFT_UPDATE_NOW);
+        return true;
+    }
+
+    /** Backspace right after an expansion puts the typed trigger back. */
+    private boolean revertSnippetExpansion(final InputTransaction inputTransaction) {
+        if (mSnippetInserted == null || mSnippetTypedTrigger == null) return false;
+        if (mWordComposer.isComposingWord() || mConnection.hasSelection()
+                || mConnection.getExpectedSelectionEnd() != mSnippetSelEnd) {
+            clearSnippetRevert();
+            return false;
+        }
+        final CharSequence before = mConnection.getTextBeforeCursor(mSnippetInserted.length(), 0);
+        if (before == null || !before.toString().equals(mSnippetInserted)) {
+            clearSnippetRevert();
+            return false;
+        }
+        mConnection.deleteTextBeforeCursor(mSnippetInserted.length());
+        mConnection.commitText(mSnippetTypedTrigger, 1);
+        clearSnippetRevert();
+        mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+        inputTransaction.setDidAffectContents();
+        return true;
+    }
+
+    private void clearSnippetRevert() {
+        mSnippetTypedTrigger = null;
+        mSnippetInserted = null;
+        mSnippetSelEnd = -1;
     }
 
     /**
@@ -1299,6 +1378,9 @@ public final class InputLogic {
                 ? InputTransaction.SHIFT_UPDATE_LATER
                 : InputTransaction.SHIFT_UPDATE_NOW;
         inputTransaction.requireShiftUpdate(shiftUpdateKind);
+
+        if (!event.isKeyRepeat() && revertSnippetExpansion(inputTransaction)) return;
+        clearSnippetRevert();
 
         if (mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
             // If we are in the middle of a recorrection, we need to commit the recorrection
